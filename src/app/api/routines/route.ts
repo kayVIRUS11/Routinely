@@ -24,7 +24,16 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any).id;
   const body = await req.json();
   const routine = await prisma.routine.create({
-    data: { ...body, userId },
+    data: {
+      userId,
+      title: body.title,
+      description: body.description,
+      dayOfWeek: body.dayOfWeek ?? [],
+      startTime: body.startTime,
+      endTime: body.endTime,
+      modeId: body.modeId,
+      isActive: body.isActive ?? true,
+    },
   });
   return NextResponse.json(routine, { status: 201 });
 }

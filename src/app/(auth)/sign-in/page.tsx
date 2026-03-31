@@ -51,7 +51,7 @@ export default function SignInPage() {
       setAttempts(newAttempts);
       if (newAttempts >= MAX_ATTEMPTS) {
         setCooldownEnd(Date.now() + COOLDOWN_MS);
-        setError(`Too many attempts. Try again in 30 seconds.`);
+        setError(`Too many attempts. Try again in ${COOLDOWN_MS / 1000} seconds.`);
       } else {
         setError(`Invalid credentials. ${MAX_ATTEMPTS - newAttempts} attempts remaining.`);
       }

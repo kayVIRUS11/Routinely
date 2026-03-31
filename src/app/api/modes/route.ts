@@ -24,7 +24,15 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any).id;
   const body = await req.json();
   const mode = await prisma.userMode.create({
-    data: { ...body, userId },
+    data: {
+      userId,
+      modeType: body.modeType,
+      modeName: body.modeName,
+      icon: body.icon,
+      isActive: body.isActive ?? true,
+      order: body.order ?? 0,
+      sections: body.sections ?? {},
+    },
   });
   return NextResponse.json(mode, { status: 201 });
 }

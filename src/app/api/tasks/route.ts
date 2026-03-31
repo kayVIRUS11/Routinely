@@ -24,7 +24,15 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any).id;
   const body = await req.json();
   const task = await prisma.task.create({
-    data: { ...body, userId },
+    data: {
+      userId,
+      title: body.title,
+      description: body.description,
+      dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+      priority: body.priority ?? "medium",
+      isRecurring: body.isRecurring ?? false,
+      modeId: body.modeId,
+    },
   });
   return NextResponse.json(task, { status: 201 });
 }
