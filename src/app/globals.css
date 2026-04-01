@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0a0a0a;
+  --color-sidebar: #111111;
+  --color-card: #1a1a1a;
+  --color-border: #2a2a2a;
+  --color-primary: #6366f1;
+  --color-primary-hover: #4f46e5;
+  --color-text-primary: #f1f1f1;
+  --color-text-secondary: #888888;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+
+  --font-sans: "Inter", sans-serif;
+
+  --animate-fade-in: fadeIn 0.3s ease-in-out;
+  --animate-slide-in: slideIn 0.3s ease-in-out;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  --keyframes-fadeIn-0%: { opacity: 0 };
+  --keyframes-fadeIn-100%: { opacity: 1 };
+  --keyframes-slideIn-0%: { transform: translateX(-10px); opacity: 0 };
+  --keyframes-slideIn-100%: { transform: translateX(0); opacity: 1 };
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-10px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0a0a;
+  color: #f1f1f1;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111111;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
