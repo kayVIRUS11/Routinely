@@ -5,14 +5,10 @@ import Link from "next/link";
 import { AlertCircle, X } from "lucide-react";
 
 export default function GuestBanner() {
-  const [isGuest, setIsGuest] = useState(false);
+  const [isGuest, setIsGuest] = useState(() =>
+    typeof window !== "undefined" && localStorage.getItem("routinely_is_guest") === "true"
+  );
   const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setIsGuest(localStorage.getItem("routinely_is_guest") === "true");
-    }
-  }, []);
 
   if (!isGuest || dismissed) return null;
 
