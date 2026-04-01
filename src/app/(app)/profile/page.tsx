@@ -217,6 +217,7 @@ export default function ProfilePage() {
   const title = getLevelTitle(level);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const stored = localStorage.getItem("onboarding_characterName");
     if (stored) setCharacterName(stored);
     const storedColor = localStorage.getItem("profile_avatarColor");
