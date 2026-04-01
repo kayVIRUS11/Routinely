@@ -16,11 +16,14 @@ import {
   Star,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import AIRoutineCreator, { type GeneratedRoutineSlot } from "@/components/ui/AIRoutineCreator";
+import AIModeReview from "@/components/ui/AIModeReview";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -255,6 +258,8 @@ const defaultRoutineForm = () => ({
 
 export default function GeneralPage() {
   const [activeTab, setActiveTab] = useState<GeneralTab>("overview");
+  const [showAIRoutine, setShowAIRoutine] = useState(false);
+  const [showAIReview, setShowAIReview] = useState(false);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -463,6 +468,12 @@ export default function GeneralPage() {
                 {lastJournal ? lastJournal.date : "—"}
               </span>
             </Card>
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setShowAIReview(true)}>
+              <Sparkles className="w-4 h-4" /> AI Review
+            </Button>
           </div>
 
           {/* Today's habits */}
@@ -940,7 +951,10 @@ export default function GeneralPage() {
       {/* ── Routine ───────────────────────────────────────────────────────────── */}
       {activeTab === "routine" && (
         <div>
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowAIRoutine(true)}>
+              <Sparkles className="w-4 h-4" /> AI Create
+            </Button>
             <Button onClick={openAddRoutine} size="sm">
               <Plus className="w-4 h-4" /> Add Slot
             </Button>
@@ -1038,6 +1052,23 @@ export default function GeneralPage() {
             </Modal>
           )}
         </div>
+      )}
+      {showAIRoutine && (
+        <AIRoutineCreator
+          modeName="General"
+          onConfirm={(slots: GeneratedRoutineSlot[]) => {
+            const newSlots = slots.map((s) => ({ id: Date.now().toString() + Math.random(), ...s }));
+            saveRoutine([...routineSlots, ...newSlots]);
+          }}
+          onClose={() => setShowAIRoutine(false)}
+        />
+      )}
+      {showAIReview && (
+        <AIModeReview
+          modeName="General"
+          modeData={{ goals, habits, tasks, journal, routineSlots }}
+          onClose={() => setShowAIReview(false)}
+        />
       )}
     </div>
   );

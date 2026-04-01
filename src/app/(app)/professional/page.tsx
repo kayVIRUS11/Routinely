@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import {
   Briefcase, Plus, X, Edit2, Trash2, Check, Clock, Calendar,
-  Target, ChevronDown, Tag, Users, FileText, Flame,
+  Target, ChevronDown, Tag, Users, FileText, Flame, Sparkles,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import AIRoutineCreator, { type GeneratedRoutineSlot } from "@/components/ui/AIRoutineCreator";
+import AIModeReview from "@/components/ui/AIModeReview";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -484,6 +486,7 @@ function RoutineTab({ slots, setSlots }: { slots: RoutineSlot[]; setSlots: (s: R
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<RoutineSlot | null>(null);
   const [form, setForm] = useState<Omit<RoutineSlot, "id">>({ title: "", day: "Mon", startTime: "08:00", endTime: "09:00" });
+  const [showAIRoutine, setShowAIRoutine] = useState(false);
 
   function openNew() { setEditing(null); setForm({ title: "", day: "Mon", startTime: "08:00", endTime: "09:00" }); setShowModal(true); }
   function openEdit(s: RoutineSlot) { setEditing(s); setForm({ title: s.title, day: s.day, startTime: s.startTime, endTime: s.endTime }); setShowModal(true); }
@@ -497,7 +500,8 @@ function RoutineTab({ slots, setSlots }: { slots: RoutineSlot[]; setSlots: (s: R
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 gap-2">
+        <Button size="sm" variant="secondary" onClick={() => setShowAIRoutine(true)}><Sparkles size={14} /> AI Create</Button>
         <Button size="sm" onClick={openNew}><Plus size={14} /> Add Slot</Button>
       </div>
       {DAYS.map(day => {
@@ -539,6 +543,16 @@ function RoutineTab({ slots, setSlots }: { slots: RoutineSlot[]; setSlots: (s: R
             </div>
           </div>
         </Modal>
+      )}
+      {showAIRoutine && (
+        <AIRoutineCreator
+          modeName="Professional"
+          onConfirm={(aiSlots: GeneratedRoutineSlot[]) => {
+            const newSlots = aiSlots.map((s) => ({ id: Date.now().toString() + Math.random(), ...s }));
+            setSlots([...slots, ...newSlots]);
+          }}
+          onClose={() => setShowAIRoutine(false)}
+        />
       )}
     </div>
   );
@@ -607,6 +621,7 @@ export default function ProfessionalPage() {
   const [deepWork, setDeepWork] = useState<DeepWorkBlock[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [routine, setRoutine] = useState<RoutineSlot[]>([]);
+  const [showAIReview, setShowAIReview] = useState(false);
 
   useEffect(() => {
     setProjects(JSON.parse(localStorage.getItem("prof_projects") ?? "[]"));
@@ -631,12 +646,28 @@ export default function ProfessionalPage() {
           <button key={t} onClick={() => setTab(t)} className={cn("px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors", tab === t ? "text-primary border-b-2 border-primary" : "text-text-secondary hover:text-text-primary")}>{t}</button>
         ))}
       </div>
-      {tab === "Overview" && <OverviewTab projects={projects} tasks={tasks} deepWork={deepWork} meetings={meetings} />}
+      {tab === "Overview" && (
+        <>
+          <OverviewTab projects={projects} tasks={tasks} deepWork={deepWork} meetings={meetings} />
+          <div className="flex justify-end mt-4">
+            <Button variant="secondary" size="sm" onClick={() => setShowAIReview(true)}>
+              <Sparkles size={14} /> AI Review
+            </Button>
+          </div>
+        </>
+      )}
       {tab === "Projects" && <ProjectsTab projects={projects} setProjects={setProjects} />}
       {tab === "Tasks" && <TasksTab tasks={tasks} setTasks={setTasks} projects={projects} />}
       {tab === "Deep Work" && <DeepWorkTab blocks={deepWork} setBlocks={setDeepWork} projects={projects} />}
       {tab === "Meetings" && <MeetingsTab meetings={meetings} setMeetings={setMeetings} projects={projects} />}
       {tab === "Routine" && <RoutineTab slots={routine} setSlots={setRoutine} />}
+      {showAIReview && (
+        <AIModeReview
+          modeName="Professional"
+          modeData={{ projects, tasks, deepWork, meetings, routine }}
+          onClose={() => setShowAIReview(false)}
+        />
+      )}
     </div>
   );
 }

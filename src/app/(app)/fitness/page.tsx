@@ -15,11 +15,14 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import AIRoutineCreator, { type GeneratedRoutineSlot } from "@/components/ui/AIRoutineCreator";
+import AIModeReview from "@/components/ui/AIModeReview";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -879,6 +882,8 @@ function RoutineSlotModal({
 
 export default function FitnessPage() {
   const [activeTab, setActiveTab] = useState<FitnessTab>("overview");
+  const [showAIRoutine, setShowAIRoutine] = useState(false);
+  const [showAIReview, setShowAIReview] = useState(false);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [plans, setPlans] = useState<WorkoutPlan[]>([]);
@@ -1067,6 +1072,12 @@ export default function FitnessPage() {
               value={plans.length}
               sub={`${logs.length} total sessions`}
             />
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setShowAIReview(true)}>
+              <Sparkles className="w-4 h-4" /> AI Review
+            </Button>
           </div>
 
           {/* Today's workout */}
@@ -1368,7 +1379,11 @@ export default function FitnessPage() {
       {/* ── Routine ───────────────────────────────────────────────────────── */}
       {activeTab === "routine" && (
         <div>
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 gap-2">
+            <Button variant="secondary" onClick={() => setShowAIRoutine(true)}>
+              <Sparkles className="w-4 h-4" />
+              AI Create
+            </Button>
             <Button onClick={() => setRoutineModal({ open: true })}>
               <Plus className="w-4 h-4" />
               Add Slot
@@ -1449,6 +1464,23 @@ export default function FitnessPage() {
             />
           )}
         </div>
+      )}
+      {showAIRoutine && (
+        <AIRoutineCreator
+          modeName="Fitness"
+          onConfirm={(slots: GeneratedRoutineSlot[]) => {
+            const newSlots = slots.map((s) => ({ id: Date.now().toString() + Math.random(), ...s }));
+            saveRoutine([...routineSlots, ...newSlots]);
+          }}
+          onClose={() => setShowAIRoutine(false)}
+        />
+      )}
+      {showAIReview && (
+        <AIModeReview
+          modeName="Fitness"
+          modeData={{ plans, logs, metrics, restDays, routineSlots }}
+          onClose={() => setShowAIReview(false)}
+        />
       )}
     </div>
   );
