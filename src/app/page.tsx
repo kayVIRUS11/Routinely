@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Sparkles } from "lucide-react";
 
 export default function LandingPage() {
+  const router = useRouter();
+
+  const handleGuest = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("routinely_is_guest", "true");
+    }
+    router.push("/home");
+  };
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Background gradient */}
@@ -47,12 +56,12 @@ export default function LandingPage() {
             Continue with Google
           </button>
 
-          <Link
-            href="/home"
+          <button
+            onClick={handleGuest}
             className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-transparent hover:bg-card border border-border/50 text-text-secondary hover:text-text-primary rounded-xl font-medium transition-colors duration-200 text-sm"
           >
             Try it first
-          </Link>
+          </button>
         </div>
 
         {/* Footer */}

@@ -548,7 +548,7 @@ function RoutineTab({ slots, setSlots }: { slots: RoutineSlot[]; setSlots: (s: R
         <AIRoutineCreator
           modeName="Professional"
           onConfirm={(aiSlots: GeneratedRoutineSlot[]) => {
-            const newSlots = aiSlots.map((s) => ({ id: Date.now().toString() + Math.random(), ...s }));
+            const newSlots = aiSlots.map((s) => ({ id: crypto.randomUUID(), ...s }));
             setSlots([...slots, ...newSlots]);
           }}
           onClose={() => setShowAIRoutine(false)}

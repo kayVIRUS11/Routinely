@@ -17,7 +17,6 @@ import {
 import { cn } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import toast from "react-hot-toast";
 
 const MODES = [
   { id: "study", label: "Study", icon: BookOpen, description: "Courses, exams, study sessions" },
@@ -42,10 +41,18 @@ export default function OnboardingPage() {
   };
 
   const handleFinish = () => {
-    toast.success("First Step achievement unlocked!", {
-      duration: 4000,
-      icon: "⭐",
-    });
+    if (typeof window !== "undefined") {
+      if (characterName.trim()) {
+        localStorage.setItem("onboarding_characterName", characterName.trim());
+      }
+      if (selectedModes.length > 0) {
+        localStorage.setItem("onboarding_selectedModes", JSON.stringify(selectedModes));
+      }
+      if (routineTitle.trim()) {
+        localStorage.setItem("onboarding_firstRoutine", routineTitle.trim());
+      }
+      localStorage.setItem("onboarding_complete", "true");
+    }
     router.push("/home");
   };
 

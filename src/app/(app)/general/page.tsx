@@ -1057,7 +1057,7 @@ export default function GeneralPage() {
         <AIRoutineCreator
           modeName="General"
           onConfirm={(slots: GeneratedRoutineSlot[]) => {
-            const newSlots = slots.map((s) => ({ id: Date.now().toString() + Math.random(), ...s }));
+            const newSlots = slots.map((s) => ({ id: uid(), ...s }));
             saveRoutine([...routineSlots, ...newSlots]);
           }}
           onClose={() => setShowAIRoutine(false)}

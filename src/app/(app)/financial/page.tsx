@@ -811,7 +811,7 @@ export default function FinancialPage() {
         <AIRoutineCreator
           modeName="Financial"
           onConfirm={(slots: GeneratedRoutineSlot[]) => {
-            const newSlots = slots.map((s) => ({ id: Date.now().toString() + Math.random(), ...s }));
+            const newSlots = slots.map((s) => ({ id: crypto.randomUUID(), ...s }));
             saveRoutine([...routineSlots, ...newSlots]);
           }}
           onClose={() => setShowAIRoutine(false)}
