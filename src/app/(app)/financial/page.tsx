@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import {
   DollarSign, Plus, X, Edit2, Trash2, Check,
   TrendingUp, TrendingDown, Target, AlertCircle,
-  Clock, Calendar,
+  Clock, Calendar, Sparkles,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import AIRoutineCreator, { type GeneratedRoutineSlot } from "@/components/ui/AIRoutineCreator";
+import AIModeReview from "@/components/ui/AIModeReview";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -187,6 +189,8 @@ function TextareaField({ label, value, onChange, placeholder }: { label: string;
 
 export default function FinancialPage() {
   const [activeTab, setActiveTab] = useState<FinTab>("overview");
+  const [showAIRoutine, setShowAIRoutine] = useState(false);
+  const [showAIReview, setShowAIReview] = useState(false);
 
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [expenseEntries, setExpenseEntries] = useState<ExpenseEntry[]>([]);
@@ -408,6 +412,11 @@ export default function FinancialPage() {
                 <Plus className="w-4 h-4" /> {label}
               </Button>
             ))}
+          </div>
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setShowAIReview(true)}>
+              <Sparkles className="w-4 h-4" /> AI Review
+            </Button>
           </div>
           {remaining < 0 && (
             <Card className="border-red-400/40">
@@ -653,7 +662,10 @@ export default function FinancialPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-text-secondary">{routineSlots.length} slot{routineSlots.length !== 1 ? "s" : ""}</p>
-            <Button onClick={openAddRoutine} size="sm"><Plus className="w-4 h-4" /> Add Slot</Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowAIRoutine(true)}><Sparkles className="w-4 h-4" /> AI Create</Button>
+              <Button onClick={openAddRoutine} size="sm"><Plus className="w-4 h-4" /> Add Slot</Button>
+            </div>
           </div>
           {routineSlots.length === 0 ? (
             <EmptyState icon={Clock} message="No routine slots yet." action={<Button onClick={openAddRoutine} size="sm"><Plus className="w-4 h-4" /> Add Slot</Button>} />
@@ -794,6 +806,23 @@ export default function FinancialPage() {
             </div>
           </div>
         </Modal>
+      )}
+      {showAIRoutine && (
+        <AIRoutineCreator
+          modeName="Financial"
+          onConfirm={(slots: GeneratedRoutineSlot[]) => {
+            const newSlots = slots.map((s) => ({ id: crypto.randomUUID(), ...s }));
+            saveRoutine([...routineSlots, ...newSlots]);
+          }}
+          onClose={() => setShowAIRoutine(false)}
+        />
+      )}
+      {showAIReview && (
+        <AIModeReview
+          modeName="Financial"
+          modeData={{ incomeEntries, expenseEntries, budgetAllocations, savingsGoals, bills }}
+          onClose={() => setShowAIReview(false)}
+        />
       )}
     </div>
   );

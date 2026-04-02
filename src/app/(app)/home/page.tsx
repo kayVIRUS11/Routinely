@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BookOpen,
   Briefcase,
@@ -16,9 +16,12 @@ import {
   TrendingUp,
   Flame,
   Target,
+  AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Card from "@/components/ui/Card";
+import { NaturalLanguageInput } from "@/components/ui/AIAssistant";
 
 const mockModes = [
   {
@@ -63,17 +66,81 @@ const mockModes = [
   },
 ];
 
-const mockRoutine = [
-  { id: "1", title: "Morning workout", startTime: "06:30", endTime: "07:30", current: true },
-  { id: "2", title: "Study session", startTime: "09:00", endTime: "11:00", current: false },
-  { id: "3", title: "Lunch break", startTime: "12:00", endTime: "13:00", current: false },
-  { id: "4", title: "Deep work", startTime: "14:00", endTime: "16:00", current: false },
-];
-
 const mockMissed = [
   { id: "1", title: "Evening run", time: "18:00", date: "Yesterday" },
   { id: "2", title: "Journal entry", time: "21:00", date: "Yesterday" },
 ];
+
+interface RoutineSlot {
+  id: string;
+  title: string;
+  day: string;
+  startTime: string;
+  endTime: string;
+  source?: string;
+}
+
+interface ConflictPair {
+  a: RoutineSlot & { source: string };
+  b: RoutineSlot & { source: string };
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function todayDayName(): string {
+  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()] ?? "Monday";
+}
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function detectConflicts(slots: (RoutineSlot & { source: string })[]): ConflictPair[] {
+  const conflicts: ConflictPair[] = [];
+  for (let i = 0; i < slots.length; i++) {
+    for (let j = i + 1; j < slots.length; j++) {
+      const a = slots[i]!;
+      const b = slots[j]!;
+      if (a.day !== b.day) continue;
+      const aStart = timeToMinutes(a.startTime);
+      const aEnd = timeToMinutes(a.endTime);
+      const bStart = timeToMinutes(b.startTime);
+      const bEnd = timeToMinutes(b.endTime);
+      if (aStart < bEnd && aEnd > bStart) {
+        conflicts.push({ a, b });
+      }
+    }
+  }
+  return conflicts;
+}
+
+function loadAllRoutineSlots(): (RoutineSlot & { source: string })[] {
+  if (typeof window === "undefined") return [];
+  const sources = [
+    { key: "study_routine", label: "Study" },
+    { key: "professional_routine", label: "Professional" },
+    { key: "fitness_routine", label: "Fitness" },
+    { key: "financial_routine", label: "Financial" },
+    { key: "general_routine", label: "General" },
+  ];
+  const all: (RoutineSlot & { source: string })[] = [];
+  for (const { key, label } of sources) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const slots = JSON.parse(raw) as RoutineSlot[];
+        all.push(...slots.map((s) => ({ ...s, source: label })));
+      }
+    } catch { /* ignore */ }
+  }
+  return all;
+}
 
 function StudyMetrics({ metrics }: { metrics: { tasksDue: number; hoursStudied: number; nextExam: string; streak: number } }) {
   return (
@@ -201,47 +268,164 @@ export default function HomePage() {
   const [missedOpen, setMissedOpen] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [done, setDone] = useState<string[]>([]);
+  const [todaySlots, setTodaySlots] = useState<(RoutineSlot & { source: string })[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictPair[]>([]);
+  const [dismissedConflicts, setDismissedConflicts] = useState<string[]>([]);
+  const [showAI, setShowAI] = useState(false);
+  const [characterName, setCharacterName] = useState<string>("");
+
+  useEffect(() => {
+    const name = localStorage.getItem("onboarding_characterName") ?? "";
+    setCharacterName(name);
+
+    const allSlots = loadAllRoutineSlots();
+    const today = todayDayName();
+    const todayFiltered = allSlots
+      .filter((s) => s.day === today)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    setTodaySlots(todayFiltered);
+
+    const detected = detectConflicts(allSlots);
+    setConflicts(detected);
+  }, []);
 
   const visibleMissed = mockMissed.filter((m) => !dismissed.includes(m.id) && !done.includes(m.id));
+  const visibleConflicts = conflicts.filter((_, i) => !dismissedConflicts.includes(String(i)));
+
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const currentSlot = todaySlots.find((s) => {
+    const start = timeToMinutes(s.startTime);
+    const end = timeToMinutes(s.endTime);
+    return nowMins >= start && nowMins < end;
+  });
+  const nextSlot = todaySlots.find((s) => timeToMinutes(s.startTime) > nowMins);
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-text-primary">Good morning</h1>
-        <p className="text-text-secondary text-sm mt-1">Here is your overview for today</p>
+      <div className="mb-8 flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary">
+            {getGreeting()}{characterName ? `, ${characterName}` : ""}
+          </h1>
+          <p className="text-text-secondary text-sm mt-1">Here is your overview for today</p>
+        </div>
+        <button
+          onClick={() => setShowAI(true)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-sm font-medium hover:bg-primary/15 transition-colors"
+        >
+          <Sparkles className="w-4 h-4" />
+          Ask AI
+        </button>
       </div>
 
+      {/* AI conflict alerts */}
+      {visibleConflicts.length > 0 && (
+        <section className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-warning" />
+            <h2 className="text-sm font-medium text-warning">
+              {visibleConflicts.length} Scheduling Conflict{visibleConflicts.length > 1 ? "s" : ""} Detected
+            </h2>
+          </div>
+          <div className="flex flex-col gap-2">
+            {visibleConflicts.map((c, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 p-3 bg-warning/5 border border-warning/20 rounded-xl"
+              >
+                <div className="flex-1 text-sm">
+                  <p className="text-text-primary font-medium">
+                    <span className="text-warning">{c.a.source}:</span> {c.a.title} ({c.a.startTime}&#x2013;{c.a.endTime})
+                    {" "}overlaps with{" "}
+                    <span className="text-warning">{c.b.source}:</span> {c.b.title} ({c.b.startTime}&#x2013;{c.b.endTime})
+                  </p>
+                  <p className="text-text-secondary text-xs mt-0.5">{c.a.day}</p>
+                </div>
+                <button
+                  onClick={() => setDismissedConflicts((prev) => [...prev, String(i)])}
+                  className="text-text-secondary hover:text-text-primary transition-colors"
+                  title="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Master routine strip */}
       <section className="mb-8">
         <h2 className="text-sm font-medium text-text-secondary uppercase tracking-wider mb-3">
           Today&apos;s Routine
         </h2>
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {mockRoutine.map((item) => (
-            <div
-              key={item.id}
-              className={cn(
-                "flex-shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
-                item.current
-                  ? "border-primary bg-primary/10 min-w-[180px]"
-                  : "border-border bg-card min-w-[160px] opacity-70"
-              )}
-            >
-              <div className={cn(
-                "w-2 h-2 rounded-full",
-                item.current ? "bg-primary animate-pulse" : "bg-border"
-              )} />
-              <div>
-                <p className={cn("text-sm font-medium", item.current ? "text-primary" : "text-text-primary")}>
-                  {item.title}
-                </p>
-                <p className="text-xs text-text-secondary flex items-center gap-1 mt-0.5">
-                  <Clock className="w-3 h-3" />
-                  {item.startTime} - {item.endTime}
-                </p>
+        {todaySlots.length > 0 ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {todaySlots.map((item) => {
+              const isCurrent = currentSlot?.id === item.id;
+              const isNext = nextSlot?.id === item.id;
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "flex-shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
+                    isCurrent
+                      ? "border-primary bg-primary/10 min-w-[180px]"
+                      : isNext
+                      ? "border-warning/40 bg-warning/5 min-w-[160px]"
+                      : "border-border bg-card min-w-[160px] opacity-60"
+                  )}
+                >
+                  <div className={cn(
+                    "w-2 h-2 rounded-full shrink-0",
+                    isCurrent ? "bg-primary animate-pulse" : isNext ? "bg-warning" : "bg-border"
+                  )} />
+                  <div className="min-w-0">
+                    <p className={cn("text-sm font-medium truncate", isCurrent ? "text-primary" : "text-text-primary")}>
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-text-secondary flex items-center gap-1 mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      {item.startTime} &#x2013; {item.endTime}
+                    </p>
+                    <p className="text-xs text-text-secondary mt-0.5">{item.source}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {[
+              { id: "1", title: "Morning workout", startTime: "06:30", endTime: "07:30", current: true },
+              { id: "2", title: "Study session", startTime: "09:00", endTime: "11:00", current: false },
+              { id: "3", title: "Lunch break", startTime: "12:00", endTime: "13:00", current: false },
+              { id: "4", title: "Deep work", startTime: "14:00", endTime: "16:00", current: false },
+            ].map((item) => (
+              <div
+                key={item.id}
+                className={cn(
+                  "flex-shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
+                  item.current
+                    ? "border-primary bg-primary/10 min-w-[180px]"
+                    : "border-border bg-card min-w-[160px] opacity-70"
+                )}
+              >
+                <div className={cn("w-2 h-2 rounded-full", item.current ? "bg-primary animate-pulse" : "bg-border")} />
+                <div>
+                  <p className={cn("text-sm font-medium", item.current ? "text-primary" : "text-text-primary")}>
+                    {item.title}
+                  </p>
+                  <p className="text-xs text-text-secondary flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3 h-3" />
+                    {item.startTime} &#x2013; {item.endTime}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mb-8">
@@ -316,6 +500,14 @@ export default function HomePage() {
             </div>
           )}
         </section>
+      )}
+
+      {showAI && (
+        <NaturalLanguageInput
+          onClose={() => setShowAI(false)}
+          placeholder="Ask me to add tasks, log expenses, create routines, or anything else!"
+          context={{ page: "home", todaySlots }}
+        />
       )}
     </div>
   );

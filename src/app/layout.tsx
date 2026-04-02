@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import { AchievementToastProvider } from "@/components/ui/AchievementToast";
 
 export const metadata: Metadata = {
   title: "Routinely - Your Personal Operating System",
@@ -16,6 +17,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="bg-background text-text-primary antialiased">
         {children}
+        <AchievementToastProvider />
         <Toaster
           position="top-right"
           toastOptions={{

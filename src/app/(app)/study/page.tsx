@@ -16,11 +16,14 @@ import {
   AlertCircle,
   GraduationCap,
   Award,
+  Sparkles,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import AIRoutineCreator, { type GeneratedRoutineSlot } from "@/components/ui/AIRoutineCreator";
+import AIModeReview from "@/components/ui/AIModeReview";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -360,6 +363,8 @@ const defaultRoutineForm = () => ({
 
 export default function StudyPage() {
   const [activeTab, setActiveTab] = useState<StudyTab>("overview");
+  const [showAIRoutine, setShowAIRoutine] = useState(false);
+  const [showAIReview, setShowAIReview] = useState(false);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [courses, setCourses] = useState<Course[]>([]);
@@ -720,6 +725,12 @@ export default function StudyPage() {
                 {label}
               </Button>
             ))}
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setShowAIReview(true)}>
+              <Sparkles className="w-4 h-4" /> AI Review
+            </Button>
           </div>
 
           {upcomingExams.length > 0 && (
@@ -1185,9 +1196,14 @@ export default function StudyPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-text-secondary">{routineSlots.length} routine slot{routineSlots.length !== 1 ? "s" : ""}</p>
-            <Button onClick={openAddRoutine} size="sm">
-              <Plus className="w-4 h-4" /> Add Slot
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowAIRoutine(true)}>
+                <Sparkles className="w-4 h-4" /> AI Create
+              </Button>
+              <Button onClick={openAddRoutine} size="sm">
+                <Plus className="w-4 h-4" /> Add Slot
+              </Button>
+            </div>
           </div>
           {routineSlots.length === 0 ? (
             <EmptyState
@@ -1564,6 +1580,23 @@ export default function StudyPage() {
             </div>
           </div>
         </Modal>
+      )}
+      {showAIRoutine && (
+        <AIRoutineCreator
+          modeName="Study"
+          onConfirm={(slots: GeneratedRoutineSlot[]) => {
+            const newSlots = slots.map((s) => ({ id: crypto.randomUUID(), ...s }));
+            saveRoutine([...routineSlots, ...newSlots]);
+          }}
+          onClose={() => setShowAIRoutine(false)}
+        />
+      )}
+      {showAIReview && (
+        <AIModeReview
+          modeName="Study"
+          modeData={{ courses, timetableSlots, assignments, exams, sessions }}
+          onClose={() => setShowAIReview(false)}
+        />
       )}
     </div>
   );

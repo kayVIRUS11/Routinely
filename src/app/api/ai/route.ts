@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
 export async function POST(req: NextRequest) {
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: "AI service is not configured" }, { status: 503 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,19 +17,17 @@ export async function POST(req: NextRequest) {
 
   const { message, context } = await req.json();
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
-    messages: [
-      {
-        role: "user",
-        content: `Context: ${JSON.stringify(context)}\n\nUser message: ${message}`,
-      },
-    ],
-    system: "You are Routinely's AI assistant helping users manage their daily life, routines, and goals. Be concise, helpful, and motivational.",
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction:
+      "You are Routinely's AI assistant helping users manage their daily life, routines, and goals. Be concise, helpful, and motivational.",
   });
 
+  const result = await model.generateContent(
+    `Context: ${JSON.stringify(context)}\n\nUser message: ${message}`
+  );
+
   return NextResponse.json({
-    response: response.content[0].type === "text" ? response.content[0].text : "",
+    response: result.response.text(),
   });
 }
