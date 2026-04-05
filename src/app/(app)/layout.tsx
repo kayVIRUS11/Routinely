@@ -4,16 +4,21 @@ import { useState } from "react";
 import Sidebar from "@/components/sidebar/Sidebar";
 import GuestBanner from "@/components/ui/GuestBanner";
 import { AIFloatingButton, NaturalLanguageInput } from "@/components/ui/AIAssistant";
+import PomodoroBar from "@/components/ui/PomodoroBar";
+import { useTimer } from "@/contexts/TimerContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
+  const { state } = useTimer();
+  const timerActive = state.status !== "idle";
 
   return (
     <div className="flex min-h-screen bg-background">
+      <PomodoroBar />
       <Sidebar />
       <div className="flex-1 ml-[52px] flex flex-col">
         <GuestBanner />
-        <main className="flex-1 p-6">
+        <main className={`flex-1 p-6 ${timerActive ? "pt-16" : ""}`}>
           {children}
         </main>
       </div>
@@ -27,3 +32,4 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+

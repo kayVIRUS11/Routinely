@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Play, Pause, RotateCcw, Coffee, Brain, Settings, X, BookOpen, Briefcase, Dumbbell, DollarSign, LayoutGrid, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { useTimer } from "@/contexts/TimerContext";
+import { PomodoroSettings } from "@/types";
 
 const TIMER_MODES = {
   focus: { label: "Focus", color: "text-primary" },
@@ -22,127 +24,44 @@ const APP_MODES = [
   { id: "general", label: "General", icon: LayoutGrid },
 ];
 
-interface PomodoroSettings {
-  focusDuration: number;
-  shortBreakDuration: number;
-  longBreakDuration: number;
-  cyclesBeforeLongBreak: number;
-  soundEnabled: boolean;
-  notificationsEnabled: boolean;
-}
-
-const DEFAULT_SETTINGS: PomodoroSettings = {
-  focusDuration: 25,
-  shortBreakDuration: 5,
-  longBreakDuration: 15,
-  cyclesBeforeLongBreak: 4,
-  soundEnabled: true,
-  notificationsEnabled: true,
-};
-
-function loadSettings(): PomodoroSettings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS;
-  try {
-    const raw = localStorage.getItem("pomodoro_settings");
-    return raw ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<PomodoroSettings>) } : DEFAULT_SETTINGS;
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
-
-function saveSession(modeId: string, taskTag: string, durationMinutes: number) {
-  if (typeof window === "undefined") return;
-  const key = `pomodoro_sessions`;
-  try {
-    const existing = JSON.parse(localStorage.getItem(key) ?? "[]") as {
-      date: string; modeId: string; taskTag: string; durationMinutes: number;
-    }[];
-    existing.push({ date: new Date().toISOString(), modeId, taskTag, durationMinutes });
-    localStorage.setItem(key, JSON.stringify(existing));
-  } catch { /* ignore */ }
-}
-
 export default function PomodoroPage() {
-  const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_SETTINGS);
+  const { state, startSession, pause, resume, reset, switchMode, updateSettings } = useTimer();
+
   const [showSettings, setShowSettings] = useState(false);
-  const [draftSettings, setDraftSettings] = useState<PomodoroSettings>(DEFAULT_SETTINGS);
+  const [draftSettings, setDraftSettings] = useState<PomodoroSettings>(state.settings);
 
-  const [timerMode, setTimerMode] = useState<TimerModeKey>("focus");
-  const [timeLeft, setTimeLeft] = useState(DEFAULT_SETTINGS.focusDuration * 60);
-  const [running, setRunning] = useState(false);
-  const [cycleCount, setCycleCount] = useState(0);
-  const [sessions, setSessions] = useState(0);
-
-  // Session tagging
+  // Session tagging (local UI state — passed into context on start)
   const [taggedMode, setTaggedMode] = useState<string>("study");
   const [taskTag, setTaskTag] = useState("");
 
+  // Keep draftSettings in sync with context settings when not editing
   useEffect(() => {
-    const s = loadSettings();
-    setSettings(s);
-    setDraftSettings(s);
-    setTimeLeft(s.focusDuration * 60);
-  }, []);
+    if (!showSettings) {
+      setDraftSettings(state.settings);
+    }
+  }, [state.settings, showSettings]);
 
-  const getDuration = useCallback((mode: TimerModeKey, s: PomodoroSettings) => {
-    if (mode === "focus") return s.focusDuration * 60;
-    if (mode === "shortBreak") return s.shortBreakDuration * 60;
-    return s.longBreakDuration * 60;
-  }, []);
-
-  const reset = useCallback(() => {
-    setRunning(false);
-    setTimeLeft(getDuration(timerMode, settings));
-  }, [timerMode, settings, getDuration]);
-
-  useEffect(() => {
-    setTimeLeft(getDuration(timerMode, settings));
-    setRunning(false);
-  }, [timerMode, settings, getDuration]);
-
-  useEffect(() => {
-    if (!running) return;
-    const interval = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          setRunning(false);
-          if (timerMode === "focus") {
-            const newCycle = cycleCount + 1;
-            setSessions((s) => s + 1);
-            saveSession(taggedMode, taskTag, settings.focusDuration);
-            if (newCycle >= settings.cyclesBeforeLongBreak) {
-              setCycleCount(0);
-              setTimerMode("longBreak");
-            } else {
-              setCycleCount(newCycle);
-              setTimerMode("shortBreak");
-            }
-          } else {
-            setTimerMode("focus");
-          }
-          if (settings.notificationsEnabled && typeof window !== "undefined" && "Notification" in window) {
-            new Notification("Routinely", {
-              body: timerMode === "focus" ? "Focus session complete! Time for a break." : "Break over — back to focus!",
-            });
-          }
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [running, timerMode, cycleCount, settings, taggedMode, taskTag]);
+  const timerMode = state.mode as TimerModeKey;
+  const timeLeft = state.timeRemaining;
+  const running = state.status === "running";
 
   const minutes = Math.floor(timeLeft / 60).toString().padStart(2, "0");
   const seconds = (timeLeft % 60).toString().padStart(2, "0");
-  const totalDuration = getDuration(timerMode, settings);
+  const totalDuration = state.totalTime;
   const progress = totalDuration > 0 ? 1 - timeLeft / totalDuration : 0;
 
-  const saveSettings = () => {
-    setSettings(draftSettings);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("pomodoro_settings", JSON.stringify(draftSettings));
+  const handlePlayPause = () => {
+    if (state.status === "idle") {
+      startSession(taggedMode, taskTag);
+    } else if (state.status === "running") {
+      pause();
+    } else {
+      resume();
     }
+  };
+
+  const handleSaveSettings = () => {
+    updateSettings(draftSettings);
     setShowSettings(false);
   };
 
@@ -151,7 +70,7 @@ export default function PomodoroPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Pomodoro Timer</h1>
         <button
-          onClick={() => { setDraftSettings(settings); setShowSettings(true); }}
+          onClick={() => { setDraftSettings(state.settings); setShowSettings(true); }}
           className="p-2 text-text-secondary hover:text-text-primary hover:bg-card rounded-lg transition-colors"
         >
           <Settings className="w-5 h-5" />
@@ -217,7 +136,7 @@ export default function PomodoroPage() {
               </label>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" onClick={() => setShowSettings(false)} className="flex-1">Cancel</Button>
-                <Button onClick={saveSettings} className="flex-1">Save</Button>
+                <Button onClick={handleSaveSettings} className="flex-1">Save</Button>
               </div>
             </div>
           </div>
@@ -229,7 +148,7 @@ export default function PomodoroPage() {
         {(Object.keys(TIMER_MODES) as TimerModeKey[]).map((m) => (
           <button
             key={m}
-            onClick={() => setTimerMode(m)}
+            onClick={() => switchMode(m)}
             className={cn(
               "flex-1 py-2 text-sm rounded-lg transition-colors duration-200 font-medium",
               timerMode === m ? "bg-background text-text-primary" : "text-text-secondary hover:text-text-primary"
@@ -312,7 +231,7 @@ export default function PomodoroPage() {
           <RotateCcw className="w-5 h-5" />
         </button>
         <button
-          onClick={() => setRunning(!running)}
+          onClick={handlePlayPause}
           className="w-14 h-14 bg-primary hover:bg-primary-hover rounded-full flex items-center justify-center transition-colors"
         >
           {running ? <Pause className="w-6 h-6 text-white" /> : <Play className="w-6 h-6 text-white ml-0.5" />}
@@ -329,15 +248,15 @@ export default function PomodoroPage() {
       {/* Progress dots */}
       <div className="text-center">
         <p className="text-text-secondary text-sm">
-          Cycle {cycleCount + 1} of {settings.cyclesBeforeLongBreak} · {sessions} sessions today
+          Cycle {state.cycleCount + 1} of {state.settings.cyclesBeforeLongBreak} · {state.sessionCount} sessions today
         </p>
         <div className="flex justify-center gap-2 mt-2">
-          {Array.from({ length: settings.cyclesBeforeLongBreak }).map((_, i) => (
+          {Array.from({ length: state.settings.cyclesBeforeLongBreak }).map((_, i) => (
             <div
               key={i}
               className={cn(
                 "w-3 h-3 rounded-full",
-                i < cycleCount ? "bg-primary" : "bg-border"
+                i < state.cycleCount ? "bg-primary" : "bg-border"
               )}
             />
           ))}

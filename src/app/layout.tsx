@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AchievementToastProvider } from "@/components/ui/AchievementToast";
+import { TimerProvider } from "@/contexts/TimerContext";
 
 export const metadata: Metadata = {
   title: "Routinely - Your Personal Operating System",
@@ -16,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-background text-text-primary antialiased">
-        {children}
+        <TimerProvider>
+          {children}
+        </TimerProvider>
         <AchievementToastProvider />
         <Toaster
           position="top-right"
