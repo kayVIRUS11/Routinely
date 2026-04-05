@@ -1,5 +1,31 @@
 export type ModeType = "study" | "professional" | "fitness" | "financial" | "general" | "custom";
 
+export type TimerMode = "focus" | "shortBreak" | "longBreak";
+export type TimerStatus = "idle" | "running" | "paused";
+
+export interface PomodoroSettings {
+  focusDuration: number;
+  shortBreakDuration: number;
+  longBreakDuration: number;
+  cyclesBeforeLongBreak: number;
+  soundEnabled: boolean;
+  notificationsEnabled: boolean;
+}
+
+export interface TimerState {
+  status: TimerStatus;
+  mode: TimerMode;
+  timeRemaining: number;
+  totalTime: number;
+  timeAtStart: number | null;
+  sessionModeId: string;
+  taskName: string;
+  startedAt: number | null;
+  cycleCount: number;
+  sessionCount: number;
+  settings: PomodoroSettings;
+}
+
 export interface Mode {
   id: string;
   modeType: ModeType;
