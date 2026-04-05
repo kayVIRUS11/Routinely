@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Check, Trash2, Target } from "lucide-react";
 import { db, makeRecord, type DbPersonalGoal } from "@/db/db";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,14 @@ export default function GoalsSection({ modeId }: GoalsSectionProps) {
   const [goals, setGoals] = useState<DbPersonalGoal[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const rows = await db.personal_goals
       .filter((g) => !g.is_deleted)
       .sortBy("created_at");
     setGoals(rows);
-  };
+  }, []);
 
-  useEffect(() => { void load(); }, [modeId]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const add = async () => {
     if (!newTitle.trim()) return;

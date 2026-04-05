@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Check } from "lucide-react";
 import { db, makeRecord, todayISO, type DbHabit, type DbHabitLog } from "@/db/db";
 import { cn } from "@/lib/utils";
@@ -16,16 +16,16 @@ export default function HabitsSection({ modeId }: HabitsSectionProps) {
 
   const today = todayISO();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [h, l] = await Promise.all([
       db.habits.filter((h) => h.mode_id === modeId && !h.is_deleted).toArray(),
       db.habit_logs.where("logged_date").equals(today).filter((l) => !l.is_deleted).toArray(),
     ]);
     setHabits(h);
     setLogs(l);
-  };
+  }, [modeId, today]);
 
-  useEffect(() => { void load(); }, [modeId]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const addHabit = async () => {
     if (!newTitle.trim()) return;

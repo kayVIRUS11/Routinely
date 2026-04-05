@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Home,
   Timer,
@@ -45,7 +45,7 @@ function useBadges(): Record<ModeKey | string, number> {
     general: 0,
   });
 
-  const computeBadges = async () => {
+  const computeBadges = useCallback(async () => {
     const today = todayISO();
 
     try {
@@ -123,7 +123,7 @@ function useBadges(): Record<ModeKey | string, number> {
     } catch {
       // IndexedDB not available (SSR or first render) — leave badges at 0
     }
-  };
+  }, []); // no deps needed since todayISO() reads from Date.now()
 
   useEffect(() => {
     void computeBadges();
@@ -132,7 +132,7 @@ function useBadges(): Record<ModeKey | string, number> {
     const onFocus = () => void computeBadges();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [computeBadges]);
 
   return badges;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Check, Trash2 } from "lucide-react";
 import { db, makeRecord, type DbTask } from "@/db/db";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,14 @@ export default function TasksSection({ modeId }: TasksSectionProps) {
   const [tasks, setTasks] = useState<DbTask[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const rows = await db.tasks
       .filter((t) => t.mode_id === modeId && !t.is_deleted)
       .sortBy("created_at");
     setTasks(rows);
-  };
+  }, [modeId]);
 
-  useEffect(() => { void load(); }, [modeId]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const addTask = async () => {
     if (!newTitle.trim()) return;

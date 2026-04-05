@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Clock, Trash2 } from "lucide-react";
 import { db, makeRecord, type DbRoutine } from "@/db/db";
 
@@ -18,14 +18,14 @@ export default function RoutineSection({ modeId }: RoutineSectionProps) {
   const [end, setEnd] = useState("09:00");
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const rows = await db.routines
       .filter((r) => r.mode_id === modeId && !r.is_deleted && r.is_active)
       .sortBy("start_time");
     setRoutines(rows);
-  };
+  }, [modeId]);
 
-  useEffect(() => { void load(); }, [modeId]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const save = async () => {
     if (!title.trim()) return;

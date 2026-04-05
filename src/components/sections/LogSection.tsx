@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, BookOpen } from "lucide-react";
 import { db, makeRecord, todayISO, type DbJournalEntry } from "@/db/db";
 
@@ -12,15 +12,15 @@ export default function LogSection({ modeId }: LogSectionProps) {
   const [entries, setEntries] = useState<DbJournalEntry[]>([]);
   const [body, setBody] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const rows = await db.journal_entries
       .filter((e) => !e.is_deleted)
       .reverse()
       .sortBy("entry_date");
     setEntries(rows.reverse());
-  };
+  }, []);
 
-  useEffect(() => { void load(); }, [modeId]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const add = async () => {
     if (!body.trim()) return;

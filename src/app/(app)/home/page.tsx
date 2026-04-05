@@ -387,22 +387,22 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    const name = localStorage.getItem("onboarding_characterName") ?? "";
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCharacterName(name);
+    // Batch synchronous reads into a single function so all state updates
+    // happen together (React batches state updates in event handlers & effects).
+    const syncData = () => {
+      const name = localStorage.getItem("onboarding_characterName") ?? "";
+      const allSlots = loadAllRoutineSlots();
+      const today = todayDayName();
+      const todayFiltered = allSlots
+        .filter((s) => s.day === today)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      const detected = detectConflicts(allSlots);
+      setCharacterName(name);
+      setTodaySlots(todayFiltered);
+      setConflicts(detected);
+    };
 
-    const allSlots = loadAllRoutineSlots();
-    const today = todayDayName();
-    const todayFiltered = allSlots
-      .filter((s) => s.day === today)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTodaySlots(todayFiltered);
-
-    const detected = detectConflicts(allSlots);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setConflicts(detected);
-
+    syncData();
     void loadMetrics();
   }, [loadMetrics]);
 

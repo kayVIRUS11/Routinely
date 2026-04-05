@@ -34,8 +34,7 @@ export default function TrackerSection({ modeId }: TrackerSectionProps) {
     setEntries(updated);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [modeId]);
+  useEffect(load, [modeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const add = () => {
     if (!label.trim() || !value.trim()) return;
@@ -95,7 +94,10 @@ export default function TrackerSection({ modeId }: TrackerSectionProps) {
               <p className="text-sm font-medium text-text-primary">{e.label}</p>
               <p className="text-xs text-text-secondary">{e.date}</p>
             </div>
-            <span className="text-sm font-bold text-text-primary">{e.value}{e.unit && <span className="text-xs text-text-secondary ml-0.5">{e.unit}</span>}</span>
+            <span className="text-sm font-bold text-text-primary">
+              {e.value}
+              {e.unit && <span className="text-xs text-text-secondary ml-0.5">{e.unit}</span>}
+            </span>
             <button
               onClick={() => del(e.id)}
               className="opacity-0 group-hover:opacity-100 p-1 text-text-secondary hover:text-error transition-all"

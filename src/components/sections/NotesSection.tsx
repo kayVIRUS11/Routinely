@@ -30,8 +30,7 @@ export default function NotesSection({ modeId }: NotesSectionProps) {
     setNotes(updated);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [modeId]);
+  useEffect(load, [modeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const add = () => {
     if (!newBody.trim()) return;

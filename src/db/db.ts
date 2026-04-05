@@ -340,5 +340,6 @@ export function makeRecord<T extends BaseRecord>(
 }
 
 export function todayISO(): string {
-  return new Date().toISOString().split("T")[0]!;
+  const iso = new Date().toISOString();
+  return iso.substring(0, 10);
 }
