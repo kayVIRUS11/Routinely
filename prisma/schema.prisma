@@ -26,13 +26,28 @@ model User {
   modes         UserMode[]
   routines      Routine[]
   tasks         Task[]
+  habits        Habit[]
+  habitLogs     HabitLog[]
   achievements  UserAchievement[]
   pomodoroSessions PomodoroSession[]
-  studyData     StudyData?
-  fitnessData   FitnessData?
-  financialData FinancialData?
-  professionalData ProfessionalData?
-  generalData   GeneralData?
+  subjects      Subject[]
+  timetableEntries TimetableEntry[]
+  exams         Exam[]
+  studySessions StudySession[]
+  assignments   Assignment[]
+  incomeEntries IncomeEntry[]
+  expenseEntries ExpenseEntry[]
+  budgets       Budget[]
+  savingsGoals  SavingsGoal[]
+  bills         Bill[]
+  workoutPlans  WorkoutPlan[]
+  workoutLogs   WorkoutLog[]
+  bodyMetrics   BodyMetric[]
+  projects      Project[]
+  meetingLogs   MeetingLog[]
+  personalGoals PersonalGoal[]
+  journalEntries JournalEntry[]
+  skillUnlocks  SkillUnlock[]
 }
 
 model Account {
@@ -77,6 +92,9 @@ model UserMode {
   order     Int      @default(0)
   sections  Json     @default("{}")
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  syncedAt  DateTime?
+  isDeleted Boolean  @default(false)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -92,6 +110,8 @@ model Routine {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -107,7 +127,40 @@ model Task {
   isRecurring Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Habit {
+  id          String    @id @default(cuid())
+  userId      String
+  modeId      String?
+  title       String
+  description String?
+  frequency   String    @default("daily")
+  targetCount Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean   @default(false)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs        HabitLog[]
+}
+
+model HabitLog {
+  id          String   @id @default(cuid())
+  userId      String
+  habitId     String
+  loggedDate  String
+  count       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit       Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  @@unique([userId, habitId, loggedDate])
 }
 
 model Achievement {
@@ -126,65 +179,305 @@ model UserAchievement {
   userId        String
   achievementId String
   earnedAt      DateTime    @default(now())
+  xp            Int         @default(0)
+  syncedAt      DateTime?
+  isDeleted     Boolean     @default(false)
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
   @@unique([userId, achievementId])
 }
 
 model PomodoroSession {
+  id            String   @id @default(cuid())
+  userId        String
+  modeId        String?
+  taskName      String   @default("")
+  durationMinutes Int    @default(25)
+  completed     Boolean  @default(true)
+  startedAt     DateTime @default(now())
+  endedAt       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  syncedAt      DateTime?
+  isDeleted     Boolean  @default(false)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Study mode ───────────────────────────────────────────────────────────────
+
+model Subject {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  syncedAt  DateTime?
+  isDeleted Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timetable TimetableEntry[]
+  exams     Exam[]
+  studySessions StudySession[]
+  assignments Assignment[]
+}
+
+model TimetableEntry {
   id          String   @id @default(cuid())
   userId      String
-  modeId      String?
-  taskId      String?
-  duration    Int
+  subjectId   String
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+model Exam {
+  id         String   @id @default(cuid())
+  userId     String
+  subjectId  String
+  title      String
+  examDate   String
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  syncedAt   DateTime?
+  isDeleted  Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+model StudySession {
+  id              String   @id @default(cuid())
+  userId          String
+  subjectId       String?
+  taskName        String?
+  durationMinutes Int
+  sessionDate     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  syncedAt        DateTime?
+  isDeleted       Boolean  @default(false)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject         Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+}
+
+model Assignment {
+  id          String   @id @default(cuid())
+  userId      String
+  subjectId   String?
+  title       String
+  dueDate     String?
   completed   Boolean  @default(false)
-  startedAt   DateTime @default(now())
-  endedAt     DateTime?
+  priority    String   @default("medium")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+}
+
+// ─── Financial mode ───────────────────────────────────────────────────────────
+
+model IncomeEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  amount    Float
+  date      String
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  syncedAt  DateTime?
+  isDeleted Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ExpenseEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  amount    Float
+  date      String
+  category  String?
+  budgetId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  syncedAt  DateTime?
+  isDeleted Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String
+  limitAmount Float
+  period      String   @default("monthly")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model StudyData {
-  id      String @id @default(cuid())
-  userId  String @unique
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courses Json   @default("[]")
-  exams   Json   @default("[]")
-  sessions Json  @default("[]")
+model SavingsGoal {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  targetDate    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  syncedAt      DateTime?
+  isDeleted     Boolean  @default(false)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model FitnessData {
-  id           String @id @default(cuid())
-  userId       String @unique
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workoutPlans Json   @default("[]")
-  exerciseLog  Json   @default("[]")
-  bodyMetrics  Json   @default("[]")
+model Bill {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  amount    Float
+  dueDate   String
+  isPaid    Boolean  @default(false)
+  recurring Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  syncedAt  DateTime?
+  isDeleted Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model FinancialData {
-  id            String @id @default(cuid())
-  userId        String @unique
-  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  income        Json   @default("[]")
-  expenses      Json   @default("[]")
-  budgetPlans   Json   @default("[]")
-  savingsGoals  Json   @default("[]")
-  bills         Json   @default("[]")
+// ─── Fitness mode ─────────────────────────────────────────────────────────────
+
+model WorkoutPlan {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  scheduledDate String?
+  dayOfWeek     Int?
+  exercises     Json     @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  syncedAt      DateTime?
+  isDeleted     Boolean  @default(false)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs          WorkoutLog[]
 }
 
-model ProfessionalData {
-  id        String @id @default(cuid())
-  userId    String @unique
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projects  Json   @default("[]")
-  meetings  Json   @default("[]")
+model WorkoutLog {
+  id              String   @id @default(cuid())
+  userId          String
+  planId          String?
+  title           String
+  logDate         String
+  durationMinutes Int?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  syncedAt        DateTime?
+  isDeleted       Boolean  @default(false)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan            WorkoutPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
 }
 
-model GeneralData {
-  id       String @id @default(cuid())
-  userId   String @unique
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  goals    Json   @default("[]")
-  habits   Json   @default("[]")
-  journal  Json   @default("[]")
+model BodyMetric {
+  id           String   @id @default(cuid())
+  userId       String
+  metricType   String
+  value        Float
+  unit         String
+  recordedDate String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  syncedAt     DateTime?
+  isDeleted    Boolean  @default(false)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// ─── Professional mode ────────────────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  status      String   @default("active")
+  deadline    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meetings    MeetingLog[]
+}
+
+model MeetingLog {
+  id          String   @id @default(cuid())
+  userId      String
+  projectId   String?
+  title       String
+  meetingDate String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+}
+
+// ─── General mode ─────────────────────────────────────────────────────────────
+
+model PersonalGoal {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  targetDate  String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JournalEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String?
+  body       String   @db.Text
+  entryDate  String
+  mood       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  syncedAt   DateTime?
+  isDeleted  Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── RPG / gamification ───────────────────────────────────────────────────────
+
+model SkillUnlock {
+  id          String   @id @default(cuid())
+  userId      String
+  skillName   String
+  modeId      String?
+  level       Int      @default(1)
+  unlockedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime?
+  isDeleted   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+

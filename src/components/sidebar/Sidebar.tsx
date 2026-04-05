@@ -17,30 +17,138 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NewModeModal, { type CustomMode } from "./NewModeModal";
+import { ModeIcon } from "@/components/icons/icons";
+import { db, todayISO } from "@/db/db";
 
 const navItems = [
   { href: "/home", icon: Home, label: "Home Hub" },
   { href: "/pomodoro", icon: Timer, label: "Pomodoro" },
 ];
 
-const modeItems = [
-  { href: "/study", icon: BookOpen, label: "Study", badge: 3 },
-  { href: "/professional", icon: Briefcase, label: "Professional", badge: 2 },
-  { href: "/fitness", icon: Dumbbell, label: "Fitness", badge: 0 },
-  { href: "/financial", icon: DollarSign, label: "Financial", badge: 1 },
-  { href: "/general", icon: LayoutGrid, label: "General", badge: 0 },
+// Static mode config — badges are computed dynamically below
+const modeItemsConfig = [
+  { href: "/study", icon: BookOpen, label: "Study", modeKey: "study" as const },
+  { href: "/professional", icon: Briefcase, label: "Professional", modeKey: "professional" as const },
+  { href: "/fitness", icon: Dumbbell, label: "Fitness", modeKey: "fitness" as const },
+  { href: "/financial", icon: DollarSign, label: "Financial", modeKey: "financial" as const },
+  { href: "/general", icon: LayoutGrid, label: "General", modeKey: "general" as const },
 ];
+
+type ModeKey = (typeof modeItemsConfig)[number]["modeKey"];
+
+function useBadges(): Record<ModeKey | string, number> {
+  const [badges, setBadges] = useState<Record<string, number>>({
+    study: 0,
+    professional: 0,
+    fitness: 0,
+    financial: 0,
+    general: 0,
+  });
+
+  const computeBadges = async () => {
+    const today = todayISO();
+
+    try {
+      // Study: tasks due today (mode_id = 'study') + overdue assignments
+      const [studyTasksDueToday, overdueAssignments] = await Promise.all([
+        db.tasks
+          .where("due_date")
+          .equals(today)
+          .filter((t) => t.mode_id === "study" && !t.completed && !t.is_deleted)
+          .count(),
+        db.assignments
+          .filter((a) => !a.completed && !a.is_deleted && !!a.due_date && a.due_date < today)
+          .count(),
+      ]);
+
+      // Financial: bills due within next 3 days
+      const in3Days = new Date();
+      in3Days.setDate(in3Days.getDate() + 3);
+      const in3DaysISO = in3Days.toISOString().split("T")[0]!;
+      const upcomingBills = await db.bills
+        .filter(
+          (b) =>
+            !b.is_paid &&
+            !b.is_deleted &&
+            b.due_date >= today &&
+            b.due_date <= in3DaysISO,
+        )
+        .count();
+
+      // Professional: tasks due today or overdue
+      const professionalDue = await db.tasks
+        .filter(
+          (t) =>
+            t.mode_id === "professional" &&
+            !t.completed &&
+            !t.is_deleted &&
+            !!t.due_date &&
+            t.due_date <= today,
+        )
+        .count();
+
+      // Fitness: 1 if today's planned workout has no log, 0 otherwise
+      const todayPlan = await db.workout_plans
+        .filter(
+          (p) =>
+            !p.is_deleted &&
+            (p.scheduled_date === today ||
+              p.day_of_week === new Date().getDay()),
+        )
+        .count();
+      const todayLog = await db.workout_logs
+        .where("log_date")
+        .equals(today)
+        .filter((l) => !l.is_deleted)
+        .count();
+      const fitnessBadge = todayPlan > 0 && todayLog === 0 ? 1 : 0;
+
+      // General: habits not yet checked in today
+      const allHabits = await db.habits.filter((h) => !h.is_deleted).toArray();
+      const todayLogs = await db.habit_logs
+        .where("logged_date")
+        .equals(today)
+        .filter((l) => !l.is_deleted)
+        .toArray();
+      const loggedHabitIds = new Set(todayLogs.map((l) => l.habit_id));
+      const generalBadge = allHabits.filter((h) => !loggedHabitIds.has(h.id)).length;
+
+      setBadges({
+        study: studyTasksDueToday + overdueAssignments,
+        professional: professionalDue,
+        fitness: fitnessBadge,
+        financial: upcomingBills,
+        general: generalBadge,
+      });
+    } catch {
+      // IndexedDB not available (SSR or first render) — leave badges at 0
+    }
+  };
+
+  useEffect(() => {
+    void computeBadges();
+
+    // Re-query on window focus
+    const onFocus = () => void computeBadges();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return badges;
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [hovered, setHovered] = useState(false);
   const [showNewMode, setShowNewMode] = useState(false);
   const [customModes, setCustomModes] = useState<CustomMode[]>([]);
+  const badges = useBadges();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("custom_modes");
       if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCustomModes(JSON.parse(stored) as CustomMode[]);
       }
     }
@@ -92,10 +200,13 @@ export default function Sidebar() {
           <div className="my-2 mx-3 border-t border-border" />
 
           {/* Built-in mode items */}
-          {modeItems.map((item) => (
+          {modeItemsConfig.map((item) => (
             <SidebarItem
               key={item.href}
-              {...item}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              badge={badges[item.modeKey] ?? 0}
               active={pathname.startsWith(item.href)}
               expanded={hovered}
             />
@@ -106,7 +217,7 @@ export default function Sidebar() {
             <SidebarCustomItem
               key={mode.id}
               mode={mode}
-              active={false}
+              active={pathname.startsWith(`/custom/${mode.id}`)}
               expanded={hovered}
             />
           ))}
@@ -168,7 +279,7 @@ function SidebarItem({ href, icon: Icon, label, active, expanded, badge }: Sideb
     >
       <div className="relative shrink-0">
         <Icon className="w-4 h-4" />
-        {badge && badge > 0 ? (
+        {badge != null && badge > 0 ? (
           <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-primary text-white text-[9px] rounded-full flex items-center justify-center font-medium">
             {badge > 9 ? "9+" : badge}
           </span>
@@ -189,7 +300,8 @@ function SidebarCustomItem({
   expanded: boolean;
 }) {
   return (
-    <div
+    <Link
+      href={`/custom/${mode.id}`}
       className={cn(
         "flex items-center mx-2 px-2 py-2 rounded-lg transition-colors duration-200 gap-3 overflow-hidden whitespace-nowrap",
         active
@@ -197,9 +309,15 @@ function SidebarCustomItem({
           : "text-text-secondary hover:text-text-primary hover:bg-card"
       )}
     >
-      <span className="text-base shrink-0 leading-none">{mode.icon}</span>
+      <div className="shrink-0 w-4 h-4 flex items-center justify-center">
+        <ModeIcon
+          iconKey={mode.icon}
+          className="w-4 h-4"
+        />
+      </div>
       {expanded && <span className="text-sm truncate">{mode.name}</span>}
-    </div>
+    </Link>
   );
 }
+
 

@@ -21,7 +21,27 @@ import { triggerAchievementToast } from "@/components/ui/AchievementToast";
 
 // ─── Persistence ────────────────────────────────────────────────────────────
 
-const PERSIST_KEY = "pomodoro_timer_state";
+const PERSIST_KEY = "routinely_timer_state";
+
+// ─── Sound ────────────────────────────────────────────────────────────────────
+
+function playSessionEndSound(): void {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.6);
+  } catch {
+    // AudioContext not available (SSR, restricted environment) — silently skip
+  }
+}
 
 function readPersistedState(): TimerState | null {
   if (typeof window === "undefined") return null;
@@ -309,6 +329,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           const nextMode: TimerMode =
             rawNewCycle >= s.settings.cyclesBeforeLongBreak ? "longBreak" : "shortBreak";
           const newCycleCount = nextMode === "longBreak" ? 0 : rawNewCycle;
+
+          // Play notification sound if enabled (before state transition)
+          if (s.settings.soundEnabled) {
+            playSessionEndSound();
+          }
 
           // Achievements
           const totalSessions = s.sessionCount + 1;

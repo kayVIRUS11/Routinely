@@ -6,29 +6,10 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 import { triggerAchievementToast } from "@/components/ui/AchievementToast";
+import IconPicker from "@/components/icons/IconPicker";
+import { ModeIcon, type IconKey } from "@/components/icons/icons";
 
-const ICON_OPTIONS = [
-  { label: "Star", emoji: "⭐" },
-  { label: "Fire", emoji: "🔥" },
-  { label: "Book", emoji: "📚" },
-  { label: "Music", emoji: "🎵" },
-  { label: "Art", emoji: "🎨" },
-  { label: "Code", emoji: "💻" },
-  { label: "Prayer", emoji: "🙏" },
-  { label: "Language", emoji: "🗣️" },
-  { label: "Travel", emoji: "✈️" },
-  { label: "Cook", emoji: "🍳" },
-  { label: "Garden", emoji: "🌱" },
-  { label: "Sport", emoji: "⚽" },
-  { label: "Music Note", emoji: "🎸" },
-  { label: "Photo", emoji: "📷" },
-  { label: "Meditation", emoji: "🧘" },
-  { label: "Science", emoji: "🔬" },
-  { label: "Heart", emoji: "❤️" },
-  { label: "Trophy", emoji: "🏆" },
-  { label: "Brain", emoji: "🧠" },
-  { label: "Rocket", emoji: "🚀" },
-];
+const DEFAULT_ICON: IconKey = "star";
 
 const SECTION_OPTIONS = [
   { id: "tasks", label: "Tasks" },
@@ -44,6 +25,7 @@ const SECTION_OPTIONS = [
 export interface CustomMode {
   id: string;
   name: string;
+  /** SVG icon key from the icon library */
   icon: string;
   sections: string[];
   aiAchievements?: { name: string; description: string }[];
@@ -56,7 +38,7 @@ interface NewModeModalProps {
 
 export default function NewModeModal({ onClose, onCreated }: NewModeModalProps) {
   const [name, setName] = useState("");
-  const [selectedIcon, setSelectedIcon] = useState(ICON_OPTIONS[0].emoji);
+  const [selectedIcon, setSelectedIcon] = useState<IconKey>(DEFAULT_ICON);
   const [selectedSections, setSelectedSections] = useState<string[]>(["tasks", "routine"]);
   const [loading, setLoading] = useState(false);
   const [aiStep, setAiStep] = useState(false);
@@ -79,8 +61,10 @@ export default function NewModeModal({ onClose, onCreated }: NewModeModalProps) 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `Generate exactly 4 achievements for a custom mode called "${name}" with sections: ${selectedSections.join(", ")}. Return ONLY a JSON array with objects having "name" and "description" fields. Example: [{"name":"First Step","description":"Started your ${name} journey"}]`,
-          context: { type: "achievement_generation", modeName: name, sections: selectedSections },
+          feature: "achievements",
+          modeName: name,
+          sections: selectedSections,
+          guest: true,
         }),
       });
 
@@ -126,7 +110,7 @@ export default function NewModeModal({ onClose, onCreated }: NewModeModalProps) 
       id: `mode_created_${newMode.id}`,
       name: "Creator",
       description: `You created the "${name}" mode!`,
-      icon: selectedIcon,
+      icon: "⭐",
       xp: 25,
     });
   };
@@ -163,24 +147,14 @@ export default function NewModeModal({ onClose, onCreated }: NewModeModalProps) 
 
             {/* Icon picker */}
             <div className="mb-5">
-              <p className="text-sm text-text-secondary font-medium mb-2">Choose an icon</p>
-              <div className="grid grid-cols-5 gap-2">
-                {ICON_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.emoji}
-                    onClick={() => setSelectedIcon(opt.emoji)}
-                    title={opt.label}
-                    className={cn(
-                      "w-full aspect-square rounded-xl text-2xl flex items-center justify-center border transition-all",
-                      selectedIcon === opt.emoji
-                        ? "border-primary bg-primary/15"
-                        : "border-border bg-background hover:border-border/60"
-                    )}
-                  >
-                    {opt.emoji}
-                  </button>
-                ))}
+              <div className="flex items-center gap-3 mb-3">
+                <p className="text-sm text-text-secondary font-medium">Choose an icon</p>
+                {/* Preview of selected icon */}
+                <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <ModeIcon iconKey={selectedIcon} className="w-4 h-4 text-primary" />
+                </div>
               </div>
+              <IconPicker value={selectedIcon} onChange={setSelectedIcon} />
             </div>
 
             {/* Sections picker */}

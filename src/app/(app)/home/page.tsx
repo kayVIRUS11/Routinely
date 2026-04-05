@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   BookOpen,
   Briefcase,
@@ -8,10 +8,6 @@ import {
   DollarSign,
   LayoutGrid,
   Clock,
-  ChevronDown,
-  ChevronUp,
-  Check,
-  RefreshCw,
   X,
   TrendingUp,
   Flame,
@@ -22,54 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import { NaturalLanguageInput } from "@/components/ui/AIAssistant";
-
-const mockModes = [
-  {
-    type: "study",
-    label: "Study",
-    icon: BookOpen,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10",
-    metrics: { tasksDue: 3, hoursStudied: 12, nextExam: "Math - Jan 25", streak: 7 },
-  },
-  {
-    type: "financial",
-    label: "Financial",
-    icon: DollarSign,
-    color: "text-green-400",
-    bg: "bg-green-400/10",
-    metrics: { monthlySpend: 1240, budgetRemaining: 360, nextBill: "Netflix - Jan 18", savingsPercent: 22 },
-  },
-  {
-    type: "fitness",
-    label: "Fitness",
-    icon: Dumbbell,
-    color: "text-orange-400",
-    bg: "bg-orange-400/10",
-    metrics: { streak: 12, todaysWorkout: "Upper body", lastSession: "Yesterday" },
-  },
-  {
-    type: "professional",
-    label: "Professional",
-    icon: Briefcase,
-    color: "text-purple-400",
-    bg: "bg-purple-400/10",
-    metrics: { deadlines: 2, tasksInProgress: 5, nextMeeting: "Sprint review - 2pm" },
-  },
-  {
-    type: "general",
-    label: "General",
-    icon: LayoutGrid,
-    color: "text-yellow-400",
-    bg: "bg-yellow-400/10",
-    metrics: { goals: 4, habitStreaks: 3, todaysTasks: 6, lastJournal: "2 days ago" },
-  },
-];
-
-const mockMissed = [
-  { id: "1", title: "Evening run", time: "18:00", date: "Yesterday" },
-  { id: "2", title: "Journal entry", time: "21:00", date: "Yesterday" },
-];
+import { db, todayISO } from "@/db/db";
 
 interface RoutineSlot {
   id: string;
@@ -84,6 +33,42 @@ interface ConflictPair {
   a: RoutineSlot & { source: string };
   b: RoutineSlot & { source: string };
 }
+
+// ─── Live metrics types ───────────────────────────────────────────────────────
+
+interface StudyLiveMetrics {
+  tasksDue: number | null;
+  streak: number | null;
+  nextExam: string | null;
+}
+
+interface FinancialLiveMetrics {
+  monthlySpend: number | null;
+  budgetRemaining: number | null;
+  nextBill: string | null;
+  savingsPercent: number | null;
+}
+
+interface FitnessLiveMetrics {
+  streak: number | null;
+  todaysWorkout: string | null;
+  lastSession: string | null;
+}
+
+interface ProfessionalLiveMetrics {
+  deadlines: number | null;
+  tasksInProgress: number | null;
+  nextMeeting: string | null;
+}
+
+interface GeneralLiveMetrics {
+  goals: number | null;
+  habitsDoneToday: number | null;
+  totalHabits: number | null;
+  lastJournal: string | null;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -142,140 +127,268 @@ function loadAllRoutineSlots(): (RoutineSlot & { source: string })[] {
   return all;
 }
 
-function StudyMetrics({ metrics }: { metrics: { tasksDue: number; hoursStudied: number; nextExam: string; streak: number } }) {
+// ─── Empty state helper ───────────────────────────────────────────────────────
+
+function EmptyState({ text }: { text: string }) {
+  return <p className="text-sm text-text-secondary italic">{text}</p>;
+}
+
+// ─── Metric display components ────────────────────────────────────────────────
+
+function StudyMetricsCard({ metrics }: { metrics: StudyLiveMetrics }) {
+  const hasData = metrics.tasksDue !== null || metrics.streak !== null || metrics.nextExam !== null;
+  if (!hasData) return <EmptyState text="No study data yet" />;
   return (
     <div className="grid grid-cols-2 gap-2 mt-3">
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Tasks due</p>
-        <p className="text-lg font-bold text-text-primary">{metrics.tasksDue}</p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Streak</p>
-        <p className="text-lg font-bold text-text-primary flex items-center gap-1">
-          <Flame className="w-4 h-4 text-orange-400" />{metrics.streak}d
-        </p>
-      </div>
-      <div className="col-span-2 bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Next exam</p>
-        <p className="text-sm font-medium text-text-primary">{metrics.nextExam}</p>
-      </div>
+      {metrics.tasksDue !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Tasks due</p>
+          <p className="text-lg font-bold text-text-primary">{metrics.tasksDue}</p>
+        </div>
+      )}
+      {metrics.streak !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Streak</p>
+          <p className="text-lg font-bold text-text-primary flex items-center gap-1">
+            <Flame className="w-4 h-4 text-orange-400" />{metrics.streak}d
+          </p>
+        </div>
+      )}
+      {metrics.nextExam && (
+        <div className="col-span-2 bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Next exam</p>
+          <p className="text-sm font-medium text-text-primary">{metrics.nextExam}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function FinancialMetrics({ metrics }: { metrics: { monthlySpend: number; budgetRemaining: number; nextBill: string; savingsPercent: number } }) {
+function FinancialMetricsCard({ metrics }: { metrics: FinancialLiveMetrics }) {
+  const hasData =
+    metrics.monthlySpend !== null ||
+    metrics.budgetRemaining !== null ||
+    metrics.nextBill !== null ||
+    metrics.savingsPercent !== null;
+  if (!hasData) return <EmptyState text="No financial data yet" />;
   return (
     <div className="grid grid-cols-2 gap-2 mt-3">
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Spent</p>
-        <p className="text-lg font-bold text-text-primary">${metrics.monthlySpend}</p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Remaining</p>
-        <p className="text-lg font-bold text-success">${metrics.budgetRemaining}</p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Savings</p>
-        <p className="text-lg font-bold text-text-primary flex items-center gap-1">
-          <TrendingUp className="w-4 h-4 text-green-400" />{metrics.savingsPercent}%
-        </p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Next bill</p>
-        <p className="text-xs font-medium text-text-primary">{metrics.nextBill}</p>
-      </div>
+      {metrics.monthlySpend !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Spent</p>
+          <p className="text-lg font-bold text-text-primary">${metrics.monthlySpend.toFixed(0)}</p>
+        </div>
+      )}
+      {metrics.budgetRemaining !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Remaining</p>
+          <p className="text-lg font-bold text-success">${metrics.budgetRemaining.toFixed(0)}</p>
+        </div>
+      )}
+      {metrics.savingsPercent !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Savings</p>
+          <p className="text-lg font-bold text-text-primary flex items-center gap-1">
+            <TrendingUp className="w-4 h-4 text-green-400" />{metrics.savingsPercent}%
+          </p>
+        </div>
+      )}
+      {metrics.nextBill && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Next bill</p>
+          <p className="text-xs font-medium text-text-primary">{metrics.nextBill}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function FitnessMetrics({ metrics }: { metrics: { streak: number; todaysWorkout: string; lastSession: string } }) {
+function FitnessMetricsCard({ metrics }: { metrics: FitnessLiveMetrics }) {
+  const hasData = metrics.streak !== null || metrics.todaysWorkout || metrics.lastSession;
+  if (!hasData) return <EmptyState text="No fitness data yet" />;
   return (
     <div className="grid grid-cols-2 gap-2 mt-3">
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Streak</p>
-        <p className="text-lg font-bold text-text-primary flex items-center gap-1">
-          <Flame className="w-4 h-4 text-orange-400" />{metrics.streak}d
-        </p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Today</p>
-        <p className="text-sm font-medium text-text-primary">{metrics.todaysWorkout}</p>
-      </div>
-      <div className="col-span-2 bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Last session</p>
-        <p className="text-sm font-medium text-text-primary">{metrics.lastSession}</p>
-      </div>
+      {metrics.streak !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Streak</p>
+          <p className="text-lg font-bold text-text-primary flex items-center gap-1">
+            <Flame className="w-4 h-4 text-orange-400" />{metrics.streak}d
+          </p>
+        </div>
+      )}
+      {metrics.todaysWorkout && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Today</p>
+          <p className="text-sm font-medium text-text-primary">{metrics.todaysWorkout}</p>
+        </div>
+      )}
+      {metrics.lastSession && (
+        <div className="col-span-2 bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Last session</p>
+          <p className="text-sm font-medium text-text-primary">{metrics.lastSession}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function ProfessionalMetrics({ metrics }: { metrics: { deadlines: number; tasksInProgress: number; nextMeeting: string } }) {
+function ProfessionalMetricsCard({ metrics }: { metrics: ProfessionalLiveMetrics }) {
+  const hasData = metrics.deadlines !== null || metrics.tasksInProgress !== null || metrics.nextMeeting;
+  if (!hasData) return <EmptyState text="No professional data yet" />;
   return (
     <div className="grid grid-cols-2 gap-2 mt-3">
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Deadlines</p>
-        <p className="text-lg font-bold text-warning">{metrics.deadlines}</p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">In progress</p>
-        <p className="text-lg font-bold text-text-primary">{metrics.tasksInProgress}</p>
-      </div>
-      <div className="col-span-2 bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Next meeting</p>
-        <p className="text-sm font-medium text-text-primary">{metrics.nextMeeting}</p>
-      </div>
+      {metrics.deadlines !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Deadlines</p>
+          <p className="text-lg font-bold text-warning">{metrics.deadlines}</p>
+        </div>
+      )}
+      {metrics.tasksInProgress !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">In progress</p>
+          <p className="text-lg font-bold text-text-primary">{metrics.tasksInProgress}</p>
+        </div>
+      )}
+      {metrics.nextMeeting && (
+        <div className="col-span-2 bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Next meeting</p>
+          <p className="text-sm font-medium text-text-primary">{metrics.nextMeeting}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function GeneralMetrics({ metrics }: { metrics: { goals: number; habitStreaks: number; todaysTasks: number; lastJournal: string } }) {
+function GeneralMetricsCard({ metrics }: { metrics: GeneralLiveMetrics }) {
+  const hasData =
+    metrics.goals !== null ||
+    metrics.habitsDoneToday !== null ||
+    metrics.lastJournal !== null;
+  if (!hasData) return <EmptyState text="No general data yet" />;
   return (
     <div className="grid grid-cols-2 gap-2 mt-3">
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Goals</p>
-        <p className="text-lg font-bold text-text-primary flex items-center gap-1">
-          <Target className="w-4 h-4 text-yellow-400" />{metrics.goals}
-        </p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Habits</p>
-        <p className="text-lg font-bold text-text-primary">{metrics.habitStreaks}</p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Today tasks</p>
-        <p className="text-lg font-bold text-text-primary">{metrics.todaysTasks}</p>
-      </div>
-      <div className="bg-background/50 rounded-lg p-2">
-        <p className="text-xs text-text-secondary">Last journal</p>
-        <p className="text-xs font-medium text-text-primary">{metrics.lastJournal}</p>
-      </div>
+      {metrics.goals !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Goals</p>
+          <p className="text-lg font-bold text-text-primary flex items-center gap-1">
+            <Target className="w-4 h-4 text-yellow-400" />{metrics.goals}
+          </p>
+        </div>
+      )}
+      {metrics.habitsDoneToday !== null && metrics.totalHabits !== null && (
+        <div className="bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Habits today</p>
+          <p className="text-lg font-bold text-text-primary">{metrics.habitsDoneToday}/{metrics.totalHabits}</p>
+        </div>
+      )}
+      {metrics.lastJournal && (
+        <div className="col-span-2 bg-background/50 rounded-lg p-2">
+          <p className="text-xs text-text-secondary">Last journal</p>
+          <p className="text-xs font-medium text-text-primary">{metrics.lastJournal}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function ModeMetrics({ type, metrics }: { type: string; metrics: Record<string, unknown> }) {
-  switch (type) {
-    case "study": return <StudyMetrics metrics={metrics as Parameters<typeof StudyMetrics>[0]["metrics"]} />;
-    case "financial": return <FinancialMetrics metrics={metrics as Parameters<typeof FinancialMetrics>[0]["metrics"]} />;
-    case "fitness": return <FitnessMetrics metrics={metrics as Parameters<typeof FitnessMetrics>[0]["metrics"]} />;
-    case "professional": return <ProfessionalMetrics metrics={metrics as Parameters<typeof ProfessionalMetrics>[0]["metrics"]} />;
-    case "general": return <GeneralMetrics metrics={metrics as Parameters<typeof GeneralMetrics>[0]["metrics"]} />;
-    default: return null;
-  }
-}
+// ─── Home page ────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const [missedOpen, setMissedOpen] = useState(false);
-  const [dismissed, setDismissed] = useState<string[]>([]);
-  const [done, setDone] = useState<string[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [todaySlots, setTodaySlots] = useState<(RoutineSlot & { source: string })[]>([]);
   const [conflicts, setConflicts] = useState<ConflictPair[]>([]);
   const [dismissedConflicts, setDismissedConflicts] = useState<string[]>([]);
   const [showAI, setShowAI] = useState(false);
   const [characterName, setCharacterName] = useState<string>("");
 
+  // Live metrics
+  const [studyMetrics, setStudyMetrics] = useState<StudyLiveMetrics>({ tasksDue: null, streak: null, nextExam: null });
+  const [financialMetrics, setFinancialMetrics] = useState<FinancialLiveMetrics>({ monthlySpend: null, budgetRemaining: null, nextBill: null, savingsPercent: null });
+  const [fitnessMetrics, setFitnessMetrics] = useState<FitnessLiveMetrics>({ streak: null, todaysWorkout: null, lastSession: null });
+  const [professionalMetrics, setProfessionalMetrics] = useState<ProfessionalLiveMetrics>({ deadlines: null, tasksInProgress: null, nextMeeting: null });
+  const [generalMetrics, setGeneralMetrics] = useState<GeneralLiveMetrics>({ goals: null, habitsDoneToday: null, totalHabits: null, lastJournal: null });
+
+  const loadMetrics = useCallback(async () => {
+    const today = todayISO();
+
+    try {
+      // Study
+      const studyTasksDue = await db.tasks
+        .filter((t) => t.mode_id === "study" && !t.completed && !t.is_deleted && !!t.due_date && t.due_date <= today)
+        .count();
+      const nextExamRow = await db.exams
+        .filter((e) => !e.is_deleted && e.exam_date >= today)
+        .first();
+      setStudyMetrics({
+        tasksDue: studyTasksDue,
+        streak: null, // streak calculation would require session history analysis
+        nextExam: nextExamRow ? `${nextExamRow.title} – ${nextExamRow.exam_date}` : null,
+      });
+
+      // Financial — current month
+      const monthStart = today.substring(0, 7); // "YYYY-MM"
+      const [expenses, budgets, bills, savings] = await Promise.all([
+        db.expense_entries.filter((e) => !e.is_deleted && e.date.startsWith(monthStart)).toArray(),
+        db.budgets.filter((b) => !b.is_deleted).toArray(),
+        db.bills.filter((b) => !b.is_paid && !b.is_deleted && b.due_date >= today).first(),
+        db.savings_goals.filter((s) => !s.is_deleted).toArray(),
+      ]);
+      const monthlySpend = expenses.reduce((s, e) => s + e.amount, 0);
+      const budgetLimit = budgets.reduce((s, b) => s + b.limit_amount, 0);
+      const totalSaved = savings.reduce((s, g) => s + g.current_amount, 0);
+      const totalSavingsTarget = savings.reduce((s, g) => s + g.target_amount, 0);
+      setFinancialMetrics({
+        monthlySpend: expenses.length > 0 ? monthlySpend : null,
+        budgetRemaining: budgets.length > 0 ? Math.max(0, budgetLimit - monthlySpend) : null,
+        nextBill: bills ? `${bills.title} – ${bills.due_date}` : null,
+        savingsPercent: totalSavingsTarget > 0 ? Math.round((totalSaved / totalSavingsTarget) * 100) : null,
+      });
+
+      // Fitness
+      const todayPlan = await db.workout_plans
+        .filter((p) => !p.is_deleted && (p.scheduled_date === today || p.day_of_week === new Date().getDay()))
+        .first();
+      const lastLog = await db.workout_logs.filter((l) => !l.is_deleted).last();
+      setFitnessMetrics({
+        streak: null, // would need consecutive day analysis
+        todaysWorkout: todayPlan ? todayPlan.title : null,
+        lastSession: lastLog ? lastLog.log_date : null,
+      });
+
+      // Professional
+      const [profDue, profInProgress, nextMeeting] = await Promise.all([
+        db.tasks.filter((t) => t.mode_id === "professional" && !t.completed && !t.is_deleted && !!t.due_date && t.due_date <= today).count(),
+        db.tasks.filter((t) => t.mode_id === "professional" && !t.completed && !t.is_deleted).count(),
+        db.meeting_logs.filter((m) => !m.is_deleted && m.meeting_date >= today).first(),
+      ]);
+      setProfessionalMetrics({
+        deadlines: profDue,
+        tasksInProgress: profInProgress,
+        nextMeeting: nextMeeting ? `${nextMeeting.title} – ${nextMeeting.meeting_date}` : null,
+      });
+
+      // General
+      const [goals, habits, habitsLoggedToday, lastJournal] = await Promise.all([
+        db.personal_goals.filter((g) => !g.completed && !g.is_deleted).count(),
+        db.habits.filter((h) => !h.is_deleted).count(),
+        db.habit_logs.where("logged_date").equals(today).filter((l) => !l.is_deleted).count(),
+        db.journal_entries.filter((j) => !j.is_deleted).last(),
+      ]);
+      setGeneralMetrics({
+        goals,
+        habitsDoneToday: habits > 0 ? habitsLoggedToday : null,
+        totalHabits: habits > 0 ? habits : null,
+        lastJournal: lastJournal ? lastJournal.entry_date : null,
+      });
+    } catch {
+      // Dexie not yet ready or SSR — leave null metrics (empty state shows)
+    }
+  }, []);
+
   useEffect(() => {
     const name = localStorage.getItem("onboarding_characterName") ?? "";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCharacterName(name);
 
     const allSlots = loadAllRoutineSlots();
@@ -283,14 +396,15 @@ export default function HomePage() {
     const todayFiltered = allSlots
       .filter((s) => s.day === today)
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTodaySlots(todayFiltered);
 
     const detected = detectConflicts(allSlots);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConflicts(detected);
-  }, []);
 
-  const visibleMissed = mockMissed.filter((m) => !dismissed.includes(m.id) && !done.includes(m.id));
-  const visibleConflicts = conflicts.filter((_, i) => !dismissedConflicts.includes(String(i)));
+    void loadMetrics();
+  }, [loadMetrics]);
 
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -300,6 +414,51 @@ export default function HomePage() {
     return nowMins >= start && nowMins < end;
   });
   const nextSlot = todaySlots.find((s) => timeToMinutes(s.startTime) > nowMins);
+
+  const visibleConflicts = conflicts.filter((_, i) => !dismissedConflicts.includes(String(i)));
+
+  const modeCards = [
+    {
+      type: "study",
+      label: "Study",
+      icon: BookOpen,
+      color: "text-blue-400",
+      bg: "bg-blue-400/10",
+      metrics: <StudyMetricsCard metrics={studyMetrics} />,
+    },
+    {
+      type: "financial",
+      label: "Financial",
+      icon: DollarSign,
+      color: "text-green-400",
+      bg: "bg-green-400/10",
+      metrics: <FinancialMetricsCard metrics={financialMetrics} />,
+    },
+    {
+      type: "fitness",
+      label: "Fitness",
+      icon: Dumbbell,
+      color: "text-orange-400",
+      bg: "bg-orange-400/10",
+      metrics: <FitnessMetricsCard metrics={fitnessMetrics} />,
+    },
+    {
+      type: "professional",
+      label: "Professional",
+      icon: Briefcase,
+      color: "text-purple-400",
+      bg: "bg-purple-400/10",
+      metrics: <ProfessionalMetricsCard metrics={professionalMetrics} />,
+    },
+    {
+      type: "general",
+      label: "General",
+      icon: LayoutGrid,
+      color: "text-yellow-400",
+      bg: "bg-yellow-400/10",
+      metrics: <GeneralMetricsCard metrics={generalMetrics} />,
+    },
+  ];
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -319,7 +478,7 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* AI conflict alerts */}
+      {/* Scheduling conflict alerts */}
       {visibleConflicts.length > 0 && (
         <section className="mb-6">
           <div className="flex items-center gap-2 mb-2">
@@ -396,34 +555,8 @@ export default function HomePage() {
             })}
           </div>
         ) : (
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {[
-              { id: "1", title: "Morning workout", startTime: "06:30", endTime: "07:30", current: true },
-              { id: "2", title: "Study session", startTime: "09:00", endTime: "11:00", current: false },
-              { id: "3", title: "Lunch break", startTime: "12:00", endTime: "13:00", current: false },
-              { id: "4", title: "Deep work", startTime: "14:00", endTime: "16:00", current: false },
-            ].map((item) => (
-              <div
-                key={item.id}
-                className={cn(
-                  "flex-shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
-                  item.current
-                    ? "border-primary bg-primary/10 min-w-[180px]"
-                    : "border-border bg-card min-w-[160px] opacity-70"
-                )}
-              >
-                <div className={cn("w-2 h-2 rounded-full", item.current ? "bg-primary animate-pulse" : "bg-border")} />
-                <div>
-                  <p className={cn("text-sm font-medium", item.current ? "text-primary" : "text-text-primary")}>
-                    {item.title}
-                  </p>
-                  <p className="text-xs text-text-secondary flex items-center gap-1 mt-0.5">
-                    <Clock className="w-3 h-3" />
-                    {item.startTime} &#x2013; {item.endTime}
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div className="p-4 bg-card border border-border rounded-xl">
+            <p className="text-sm text-text-secondary">No routine slots for today. Add some in your mode pages.</p>
           </div>
         )}
       </section>
@@ -433,7 +566,7 @@ export default function HomePage() {
           Mode Overview
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockModes.map((mode) => {
+          {modeCards.map((mode) => {
             const Icon = mode.icon;
             return (
               <Card key={mode.type} hover className="cursor-pointer">
@@ -443,64 +576,12 @@ export default function HomePage() {
                   </div>
                   <h3 className="font-semibold text-text-primary">{mode.label}</h3>
                 </div>
-                <ModeMetrics type={mode.type} metrics={mode.metrics as Record<string, unknown>} />
+                {mode.metrics}
               </Card>
             );
           })}
         </div>
       </section>
-
-      {visibleMissed.length > 0 && (
-        <section>
-          <button
-            onClick={() => setMissedOpen(!missedOpen)}
-            className="flex items-center gap-2 text-sm font-medium text-warning mb-3 hover:text-warning/80 transition-colors"
-          >
-            {missedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {visibleMissed.length} missed routine{visibleMissed.length > 1 ? "s" : ""}
-          </button>
-
-          {missedOpen && (
-            <div className="flex flex-col gap-2 animate-fade-in">
-              {visibleMissed.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-3 p-3 bg-card border border-warning/20 rounded-xl"
-                >
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-text-primary">{item.title}</p>
-                    <p className="text-xs text-text-secondary">
-                      {item.date} at {item.time}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setDone([...done, item.id])}
-                      className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors"
-                      title="Mark done"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button
-                      className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                      title="Reschedule"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDismissed([...dismissed, item.id])}
-                      className="p-1.5 text-text-secondary hover:bg-card rounded-lg transition-colors"
-                      title="Dismiss"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       {showAI && (
         <NaturalLanguageInput
