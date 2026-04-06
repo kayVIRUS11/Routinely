@@ -44,7 +44,8 @@ Example:
     const suggestions = JSON.parse(json) as unknown[];
 
     return NextResponse.json({ success: true, suggestions });
-  } catch {
+  } catch (err) {
+    console.error("[AI suggestions] Generation failed:", err);
     return NextResponse.json({ success: false, message: "Could not generate — please try again" }, { status: 500 });
   }
 }

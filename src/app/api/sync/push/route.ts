@@ -34,6 +34,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ synced: 0 });
   }
 
+  // Validate that records belong to the authenticated user before accepting them
+  const invalidRecord = records.find(
+    (r) => r.user_id !== undefined && r.user_id !== user.id,
+  );
+  if (invalidRecord) {
+    return NextResponse.json(
+      { error: "Record user_id does not match the authenticated user" },
+      { status: 400 },
+    );
+  }
+
   // Enforce user_id matches the authenticated user
   const safeRecords = records.map((r) => ({ ...r, user_id: user.id }));
 

@@ -28,8 +28,10 @@ export function useLiveQuery<T>(
           next: (val) => {
             if (!cancelled) setResult(val);
           },
-          error: () => {
-            // Silently handle errors (e.g. DB not yet open)
+          error: (err) => {
+            if (process.env.NODE_ENV === "development") {
+              console.error("[useLiveQuery] liveQuery subscription error:", err);
+            }
           },
         });
         return () => subscription.unsubscribe();

@@ -33,7 +33,8 @@ Write 2-3 sentences: highlight their best achievement, suggest one improvement a
     const review = result.response.text().trim();
 
     return NextResponse.json({ success: true, review });
-  } catch {
+  } catch (err) {
+    console.error("[AI review] Generation failed:", err);
     return NextResponse.json({ success: false, message: "Could not generate — please try again" }, { status: 500 });
   }
 }

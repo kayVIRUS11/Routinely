@@ -44,7 +44,8 @@ Example format:
     const achievements = JSON.parse(json) as unknown[];
 
     return NextResponse.json({ success: true, achievements });
-  } catch {
+  } catch (err) {
+    console.error("[AI achievements] Generation failed:", err);
     return NextResponse.json({ success: false, message: "Could not generate — please try again" }, { status: 500 });
   }
 }

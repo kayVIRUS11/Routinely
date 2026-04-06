@@ -118,8 +118,9 @@ export default function OnboardingPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem("onboarding_complete", "true");
       }
-    } catch {
-      // Silently handle DB errors — still navigate to home
+    } catch (err) {
+      console.error("[Onboarding] Failed to save onboarding data:", err);
+      // Show a warning but still navigate — don't block the user
     } finally {
       setSaving(false);
     }
