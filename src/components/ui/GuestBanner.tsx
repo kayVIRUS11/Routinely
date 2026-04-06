@@ -1,31 +1,46 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, X } from "lucide-react";
 
 export default function GuestBanner() {
-  const [isGuest, setIsGuest] = useState(() =>
+  const [isGuest] = useState(() =>
     typeof window !== "undefined" && localStorage.getItem("routinely_is_guest") === "true"
   );
   const [dismissed, setDismissed] = useState(false);
+  const router = useRouter();
 
   if (!isGuest || dismissed) return null;
 
   return (
-    <div className="fixed top-0 left-[52px] right-0 z-40 bg-warning/10 border-b border-warning/20 px-4 py-2 flex items-center gap-3">
+    <div
+      className="w-full bg-warning/10 border-b border-warning/20 px-4 flex items-center gap-3 shrink-0"
+      style={{ height: 40, minHeight: 40 }}
+    >
       <AlertCircle className="w-4 h-4 text-warning shrink-0" />
-      <p className="text-sm text-warning flex-1">
-        You are in guest mode — your data is stored locally and will be lost if you clear your
-        browser.{" "}
-        <Link href="/sign-up" className="font-semibold underline hover:no-underline">
-          Create a free account
-        </Link>{" "}
-        to sync across devices.
+      <p className="text-sm text-warning flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span>You are in guest mode — your data is stored locally.</span>
+        <span className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => router.push("/sign-up")}
+            className="font-semibold underline hover:no-underline transition-colors"
+          >
+            Create free account
+          </button>
+          <span className="text-warning/60">·</span>
+          <button
+            onClick={() => router.push("/sign-in")}
+            className="font-semibold underline hover:no-underline transition-colors"
+          >
+            Sign in
+          </button>
+        </span>
       </p>
       <button
         onClick={() => setDismissed(true)}
         className="shrink-0 text-warning/60 hover:text-warning transition-colors"
+        aria-label="Dismiss guest banner"
       >
         <X className="w-4 h-4" />
       </button>

@@ -11,14 +11,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { state } = useTimer();
   const timerActive = state.status !== "idle";
+  const isGuest =
+    typeof window !== "undefined" && localStorage.getItem("routinely_is_guest") === "true";
 
   return (
     <div className="flex min-h-screen bg-background">
       <PomodoroBar />
       <Sidebar />
       <div className="flex-1 ml-[52px] flex flex-col">
+        {/* GuestBanner is in the document flow — it pushes content down */}
         <GuestBanner />
-        <main className={`flex-1 p-6 ${timerActive ? "pt-16" : ""}`}>
+        <main
+          className={[
+            "flex-1 p-6",
+            timerActive ? "pt-16" : "",
+            isGuest ? "pt-[40px]" : "",
+            timerActive && isGuest ? "pt-[calc(4rem+40px)]" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {children}
         </main>
       </div>
