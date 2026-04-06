@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 
 function PasswordStrength({ password }: { password: string }) {
   const checks = [
@@ -38,32 +40,35 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export default function SignUpPage() {
+  const { signUp, signInWithGoogle, user } = useAuth();
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (user) router.replace("/home");
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrors({});
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setErrors({ form: data.error ?? "Registration failed" });
-      } else {
-        window.location.href = "/verify-email";
-      }
-    } catch {
-      setErrors({ form: "Something went wrong. Please try again." });
-    } finally {
-      setLoading(false);
+    const { error } = await signUp(formData.email, formData.password, formData.name);
+    setLoading(false);
+    if (error) {
+      setErrors({ form: error });
+    } else {
+      router.push("/verify-email");
     }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setGoogleLoading(true);
+    await signInWithGoogle();
   };
 
   return (
@@ -129,7 +134,9 @@ export default function SignUpPage() {
 
         <button
           type="button"
-          className="w-full flex items-center justify-center gap-3 px-4 py-2 bg-card hover:bg-border border border-border text-text-primary rounded-lg text-sm font-medium transition-colors duration-200"
+          onClick={handleGoogleSignUp}
+          disabled={googleLoading}
+          className="w-full flex items-center justify-center gap-3 px-4 py-2 bg-card hover:bg-border border border-border text-text-primary rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-60"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

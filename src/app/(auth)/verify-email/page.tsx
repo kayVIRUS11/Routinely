@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Mail, ArrowLeft } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function VerifyEmailPage() {
   const [resent, setResent] = useState(false);
@@ -11,7 +12,12 @@ export default function VerifyEmailPage() {
 
   const handleResend = async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    // Get the email from session (user may be in a partial sign-up state)
+    const { data } = await supabase.auth.getSession();
+    const email = data.session?.user?.email;
+    if (email) {
+      await supabase.auth.resend({ type: "signup", email });
+    }
     setResent(true);
     setLoading(false);
   };

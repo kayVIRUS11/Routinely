@@ -5,18 +5,27 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { supabase } from "@/lib/supabase";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setSent(true);
+    setError("");
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
     setLoading(false);
+    if (err) {
+      setError(err.message);
+    } else {
+      setSent(true);
+    }
   };
 
   return (
@@ -50,6 +59,9 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
+            {error && (
+              <p className="text-sm text-error bg-error/10 px-3 py-2 rounded-lg">{error}</p>
+            )}
             <Button type="submit" loading={loading} className="w-full">
               Send reset link
             </Button>

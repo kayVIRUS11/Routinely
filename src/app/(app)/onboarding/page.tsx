@@ -17,6 +17,10 @@ import {
 import { cn } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { db, makeRecord } from "@/db/db";
+import type { DbUser, DbAchievement, DbRoutine } from "@/db/db";
+import { triggerAchievementToast } from "@/components/ui/AchievementToast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MODES = [
   { id: "study", label: "Study", icon: BookOpen, description: "Courses, exams, study sessions" },
@@ -27,12 +31,24 @@ const MODES = [
   { id: "custom", label: "Create your own", icon: Plus, description: "Custom mode" },
 ];
 
+const AVATARS = [
+  { key: "star", emoji: "⭐", label: "Star" },
+  { key: "rocket", emoji: "🚀", label: "Rocket" },
+  { key: "brain", emoji: "🧠", label: "Brain" },
+  { key: "fire", emoji: "🔥", label: "Fire" },
+  { key: "diamond", emoji: "💎", label: "Diamond" },
+  { key: "crown", emoji: "👑", label: "Crown" },
+];
+
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user, isGuest } = useAuth();
   const [step, setStep] = useState(1);
   const [characterName, setCharacterName] = useState("");
   const [selectedModes, setSelectedModes] = useState<string[]>([]);
   const [routineTitle, setRoutineTitle] = useState("");
+  const [selectedAvatar, setSelectedAvatar] = useState("star");
+  const [saving, setSaving] = useState(false);
 
   const toggleMode = (id: string) => {
     setSelectedModes((prev) =>
@@ -40,19 +56,74 @@ export default function OnboardingPage() {
     );
   };
 
-  const handleFinish = () => {
-    if (typeof window !== "undefined") {
-      if (characterName.trim()) {
-        localStorage.setItem("onboarding_characterName", characterName.trim());
-      }
-      if (selectedModes.length > 0) {
-        localStorage.setItem("onboarding_selectedModes", JSON.stringify(selectedModes));
-      }
+  const getUserId = (): string | null => {
+    if (user?.id) return user.id;
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("routinely_guest_user_id");
+  };
+
+  const handleFinish = async () => {
+    setSaving(true);
+    const userId = getUserId();
+
+    try {
+      const now = new Date().toISOString();
+
+      // Save user profile to Dexie
+      const userRecord = makeRecord<DbUser>({
+        name: characterName.trim() || null,
+        email: user?.email ?? null,
+        avatar_key: selectedAvatar,
+        onboarding_complete: true,
+        is_guest: isGuest,
+        xp: 50,
+        level: 1,
+      }, userId);
+      await db.users.add(userRecord);
+
+      // Save first routine if provided
       if (routineTitle.trim()) {
-        localStorage.setItem("onboarding_firstRoutine", routineTitle.trim());
+        const routine = makeRecord<DbRoutine>({
+          mode_id: selectedModes[0] ?? null,
+          title: routineTitle.trim(),
+          description: null,
+          day_of_week: [1, 2, 3, 4, 5],
+          start_time: "09:00",
+          end_time: "10:00",
+          is_active: true,
+        }, userId);
+        await db.routines.add(routine);
       }
-      localStorage.setItem("onboarding_complete", "true");
+
+      // Award First Step achievement
+      const achievement = makeRecord<DbAchievement>({
+        name: "First Step",
+        description: "You've taken your first step toward a more organised life.",
+        icon: "⭐",
+        earned_at: now,
+        xp: 50,
+      }, userId);
+      await db.achievements.add(achievement);
+
+      // Show achievement toast
+      triggerAchievementToast({
+        id: "first_step",
+        name: "First Step",
+        description: "You've taken your first step toward a more organised life.",
+        icon: "⭐",
+        xp: 50,
+      });
+
+      // Legacy localStorage flag for compatibility
+      if (typeof window !== "undefined") {
+        localStorage.setItem("onboarding_complete", "true");
+      }
+    } catch {
+      // Silently handle DB errors — still navigate to home
+    } finally {
+      setSaving(false);
     }
+
     router.push("/home");
   };
 
@@ -171,38 +242,75 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 4: First routine */}
+        {/* Step 4: Character creation — avatar */}
         {step === 4 && (
           <div className="animate-fade-in">
-            <h1 className="text-2xl font-bold text-text-primary mb-2">Add your first routine</h1>
-            <p className="text-text-secondary mb-6">
-              Start with one daily routine, or skip and add later.
+            <h1 className="text-2xl font-bold text-text-primary mb-2">Create your character</h1>
+            <p className="text-text-secondary mb-2">
+              Pick an avatar and add your first routine (optional).
             </p>
-            <div className="flex flex-col gap-4">
-              <Input
-                label="Routine name (optional)"
-                placeholder="e.g. Morning workout, Study session..."
-                value={routineTitle}
-                onChange={(e) => setRoutineTitle(e.target.value)}
-              />
-              <div className="flex gap-3 pt-2">
-                <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">
-                  Back
-                </Button>
-                <Button onClick={() => setStep(5)} className="flex-1">
-                  {routineTitle ? "Save & continue" : "Skip"} <ArrowRight className="w-4 h-4" />
-                </Button>
+
+            {/* Avatar grid */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              {AVATARS.map((av) => (
+                <button
+                  key={av.key}
+                  onClick={() => setSelectedAvatar(av.key)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-3 rounded-xl border transition-all duration-200",
+                    selectedAvatar === av.key
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card hover:border-border/80"
+                  )}
+                >
+                  <span className="text-3xl">{av.emoji}</span>
+                  <span className={cn("text-xs", selectedAvatar === av.key ? "text-primary" : "text-text-secondary")}>
+                    {av.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* First routine (optional) */}
+            <Input
+              label="First routine (optional)"
+              placeholder="e.g. Morning workout, Study session..."
+              value={routineTitle}
+              onChange={(e) => setRoutineTitle(e.target.value)}
+              className="mb-5"
+            />
+
+            {/* Character stats preview */}
+            <div className="bg-card border border-border rounded-xl p-4 mb-5">
+              <p className="text-xs text-text-secondary mb-3 font-medium uppercase tracking-wide">Character stats — all at 0 now, they grow as you use the app</p>
+              <div className="flex flex-col gap-2">
+                {(["Focus", "Drive", "Vitality", "Wealth", "Balance"] as const).map((stat) => (
+                  <div key={stat} className="flex items-center gap-3">
+                    <span className="text-xs text-text-secondary w-14">{stat}</span>
+                    <div className="flex-1 h-1.5 bg-border rounded-full" />
+                    <span className="text-xs text-text-secondary">0</span>
+                  </div>
+                ))}
               </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">
+                Back
+              </Button>
+              <Button onClick={() => setStep(5)} className="flex-1">
+                Continue <ArrowRight className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         )}
 
-        {/* Step 5: Character created */}
+        {/* Step 5: First Step achievement */}
         {step === 5 && (
           <div className="text-center animate-fade-in">
             <div className="relative w-24 h-24 mx-auto mb-6">
-              <div className="w-24 h-24 bg-gradient-to-br from-primary to-purple-600 rounded-full flex items-center justify-center">
-                <Star className="w-12 h-12 text-white" />
+              <div className="w-24 h-24 bg-gradient-to-br from-primary to-purple-600 rounded-full flex items-center justify-center text-4xl">
+                {AVATARS.find((a) => a.key === selectedAvatar)?.emoji ?? "⭐"}
               </div>
               <div className="absolute -bottom-1 -right-1 bg-warning text-background text-xs font-bold px-2 py-0.5 rounded-full">
                 Lv. 1
@@ -222,13 +330,13 @@ export default function OnboardingPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-text-primary">First Step</p>
-                  <p className="text-xs text-text-secondary">Completed onboarding</p>
+                  <p className="text-xs text-text-secondary">You&apos;ve taken your first step toward a more organised life.</p>
                 </div>
                 <div className="ml-auto text-xs text-warning font-medium">+50 XP</div>
               </div>
             </div>
-            <Button size="lg" className="w-full" onClick={handleFinish}>
-              Enter Routinely <ArrowRight className="w-4 h-4" />
+            <Button size="lg" loading={saving} className="w-full" onClick={handleFinish}>
+              Let&apos;s go <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
         )}

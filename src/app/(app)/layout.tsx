@@ -6,13 +6,13 @@ import GuestBanner from "@/components/ui/GuestBanner";
 import { AIFloatingButton, NaturalLanguageInput } from "@/components/ui/AIAssistant";
 import PomodoroBar from "@/components/ui/PomodoroBar";
 import { useTimer } from "@/contexts/TimerContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { state } = useTimer();
+  const { isGuest } = useAuth();
   const timerActive = state.status !== "idle";
-  const isGuest =
-    typeof window !== "undefined" && localStorage.getItem("routinely_is_guest") === "true";
 
   return (
     <div className="flex min-h-screen bg-background">
