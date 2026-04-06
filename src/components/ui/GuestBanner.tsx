@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function GuestBanner() {
-  const [isGuest] = useState(() =>
-    typeof window !== "undefined" && localStorage.getItem("routinely_is_guest") === "true"
-  );
+  const { isGuest } = useAuth();
   const [dismissed, setDismissed] = useState(false);
   const router = useRouter();
 

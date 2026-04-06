@@ -11,6 +11,18 @@ interface BaseRecord {
   is_deleted: boolean;
 }
 
+// ─── User profile ─────────────────────────────────────────────────────────────
+
+export interface DbUser extends BaseRecord {
+  name: string | null;
+  email: string | null;
+  avatar_key: string | null;
+  onboarding_complete: boolean;
+  is_guest: boolean;
+  xp: number;
+  level: number;
+}
+
 // ─── Core tables ─────────────────────────────────────────────────────────────
 
 export interface DbMode extends BaseRecord {
@@ -228,6 +240,9 @@ export interface DbSyncQueueItem {
 // ─── Database class ───────────────────────────────────────────────────────────
 
 class RoutinelyDB extends Dexie {
+  // Users
+  users!: Table<DbUser>;
+
   // Core
   modes!: Table<DbMode>;
   tasks!: Table<DbTask>;
@@ -315,6 +330,11 @@ class RoutinelyDB extends Dexie {
 
       // Sync
       sync_queue: "id, table_name, record_id, queued_at",
+    });
+
+    this.version(2).stores({
+      // Add users table
+      users: "id, user_id, is_deleted, onboarding_complete",
     });
   }
 }

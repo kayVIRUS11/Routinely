@@ -3,6 +3,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AchievementToastProvider } from "@/components/ui/AchievementToast";
 import { TimerProvider } from "@/contexts/TimerContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Routinely - Your Personal Operating System",
@@ -17,9 +18,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-background text-text-primary antialiased">
-        <TimerProvider>
-          {children}
-        </TimerProvider>
+        <AuthProvider>
+          <TimerProvider>
+            {children}
+          </TimerProvider>
+        </AuthProvider>
         <AchievementToastProvider />
         <Toaster
           position="top-right"

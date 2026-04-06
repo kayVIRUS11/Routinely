@@ -2,23 +2,32 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft, AlertCircle } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MAX_ATTEMPTS = 5;
 const COOLDOWN_MS = 30000;
 
 export default function SignInPage() {
+  const { signIn, signInWithGoogle, user } = useAuth();
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [attempts, setAttempts] = useState(0);
   const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
   const [remaining, setRemaining] = useState(0);
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (user) router.replace("/home");
+  }, [user, router]);
 
   useEffect(() => {
     if (!cooldownEnd) return;
@@ -40,13 +49,9 @@ export default function SignInPage() {
     if (cooldownEnd) return;
     setLoading(true);
     setError("");
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    const { error: err } = await signIn(email, password);
     setLoading(false);
-    if (result?.error) {
+    if (err) {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       if (newAttempts >= MAX_ATTEMPTS) {
@@ -56,8 +61,13 @@ export default function SignInPage() {
         setError(`Invalid credentials. ${MAX_ATTEMPTS - newAttempts} attempts remaining.`);
       }
     } else {
-      window.location.href = "/home";
+      router.push("/home");
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    await signInWithGoogle();
   };
 
   return (
@@ -125,8 +135,9 @@ export default function SignInPage() {
 
         <button
           type="button"
-          onClick={() => signIn("google", { callbackUrl: "/home" })}
-          className="w-full flex items-center justify-center gap-3 px-4 py-2 bg-card hover:bg-border border border-border text-text-primary rounded-lg text-sm font-medium transition-colors duration-200"
+          onClick={handleGoogleSignIn}
+          disabled={googleLoading}
+          className="w-full flex items-center justify-center gap-3 px-4 py-2 bg-card hover:bg-border border border-border text-text-primary rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-60"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

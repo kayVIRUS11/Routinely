@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { supabase } from "@/lib/supabase";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -25,9 +26,14 @@ export default function ResetPasswordPage() {
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setDone(true);
+    setError("");
+    const { error: err } = await supabase.auth.updateUser({ password });
     setLoading(false);
+    if (err) {
+      setError(err.message);
+    } else {
+      setDone(true);
+    }
   };
 
   return (
