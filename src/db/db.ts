@@ -1,3 +1,5 @@
+"use client";
+
 import Dexie, { type Table } from "dexie";
 
 // ─── Shared base fields ───────────────────────────────────────────────────────
@@ -339,7 +341,11 @@ class RoutinelyDB extends Dexie {
   }
 }
 
-export const db = new RoutinelyDB();
+// Guard against SSR — Dexie / IndexedDB only works in the browser
+export const db =
+  typeof window !== "undefined"
+    ? new RoutinelyDB()
+    : (null as unknown as RoutinelyDB);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
