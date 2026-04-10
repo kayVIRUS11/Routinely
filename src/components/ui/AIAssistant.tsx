@@ -66,7 +66,7 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       if (msg.includes("not configured") || msg.includes("503")) {
-        setError("AI is not configured yet. Add your GEMINI_API_KEY to enable AI features.");
+        setError("AI is not configured yet. Add your OPENROUTER_API_KEY to enable AI features.");
       } else {
         setError(msg);
       }

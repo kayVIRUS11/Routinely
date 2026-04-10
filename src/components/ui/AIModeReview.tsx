@@ -47,7 +47,7 @@ export default function AIModeReview({ modeName, modeData, onClose }: AIModeRevi
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       if (msg.includes("not configured") || msg.includes("503")) {
-        setError("AI is not configured yet. Add your GEMINI_API_KEY to enable AI reviews.");
+        setError("AI is not configured yet. Add your OPENROUTER_API_KEY to enable AI reviews.");
       } else {
         setError(msg);
       }
