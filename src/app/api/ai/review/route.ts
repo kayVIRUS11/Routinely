@@ -42,7 +42,7 @@ Write 2-3 sentences: highlight their best achievement, suggest one improvement a
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
       safetySettings: SAFETY_SETTINGS,
     });
