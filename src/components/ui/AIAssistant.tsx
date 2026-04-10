@@ -5,6 +5,7 @@ import { Sparkles, X, Send, Loader2, AlertCircle, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
 
 interface AIMessage {
   role: "user" | "assistant";
@@ -103,19 +104,13 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
               </p>
             </div>
             <div className="flex gap-3 w-full">
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary hover:text-text-primary text-sm transition-colors"
-              >
+              <Button variant="secondary" onClick={onClose} className="flex-1">
                 Not now
-              </button>
-              <button
-                onClick={() => { onClose(); router.push("/sign-up"); }}
-                className="flex-1 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
+              </Button>
+              <Button onClick={() => { onClose(); router.push("/sign-up"); }} className="flex-1">
                 <LogIn className="w-4 h-4" />
                 Sign up free
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
