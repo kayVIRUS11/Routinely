@@ -28,6 +28,9 @@ async function callOpenRouter(prompt: string): Promise<string> {
   }
 
   const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  if (!data.choices?.length) {
+    throw new Error("OpenRouter returned no choices");
+  }
   return data.choices[0].message.content;
 }
 

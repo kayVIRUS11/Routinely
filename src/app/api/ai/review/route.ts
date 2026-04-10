@@ -42,6 +42,8 @@ Write 2-3 sentences: highlight their best achievement, suggest one improvement a
       },
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
+        temperature: 0.7,
+        max_tokens: 300,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -52,6 +54,9 @@ Write 2-3 sentences: highlight their best achievement, suggest one improvement a
     }
 
     const data = (await res.json()) as { choices: { message: { content: string } }[] };
+    if (!data.choices?.length) {
+      throw new Error("OpenRouter returned no choices");
+    }
     const review = data.choices[0].message.content.trim();
 
     return NextResponse.json({ success: true, review });

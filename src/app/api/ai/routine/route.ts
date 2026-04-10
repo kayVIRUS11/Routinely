@@ -49,6 +49,8 @@ Example:
       },
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
+        temperature: 0.7,
+        max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -59,6 +61,9 @@ Example:
     }
 
     const data = (await res.json()) as { choices: { message: { content: string } }[] };
+    if (!data.choices?.length) {
+      throw new Error("OpenRouter returned no choices");
+    }
     const text = data.choices[0].message.content.trim();
     const json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
     const routine = JSON.parse(json) as unknown[];
