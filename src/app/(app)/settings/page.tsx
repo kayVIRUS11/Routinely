@@ -501,7 +501,7 @@ export default function SettingsPage() {
   function addMode() {
     const trimmed = newModeName.trim();
     if (!trimmed) return;
-    const id = `custom_${trimmed.toLowerCase().replace(/\s+/g, "-")}_${Date.now()}`;
+    const id = `custom_${crypto.randomUUID()}`;
     setModes((prev) => [
       ...prev,
       {
@@ -604,8 +604,12 @@ export default function SettingsPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) {
-        const data = await res.json() as { error?: string };
-        setDeleteError(data.error ?? "Failed to delete account");
+        let errorMsg = "Failed to delete account";
+        try {
+          const data = await res.json() as { error?: string };
+          if (data.error) errorMsg = data.error;
+        } catch { /* use default message */ }
+        setDeleteError(errorMsg);
         return;
       }
     }

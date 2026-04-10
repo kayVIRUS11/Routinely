@@ -196,7 +196,10 @@ export default function Sidebar() {
     try {
       const stored = localStorage.getItem("custom_modes");
       setCustomModes(stored ? (JSON.parse(stored) as CustomMode[]) : []);
-    } catch { /* ignore */ }
+    } catch {
+      // localStorage contained malformed JSON — reset to empty list
+      setCustomModes([]);
+    }
   }, []);
 
   useEffect(() => {

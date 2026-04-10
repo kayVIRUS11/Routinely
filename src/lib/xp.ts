@@ -61,7 +61,7 @@ export function xpToNextLevel(xp: number): number {
  */
 export function xpThresholdsForLevel(xp: number): { levelStart: number; levelEnd: number } {
   const level = levelFromXP(xp);
-  const levelStart = LEVEL_THRESHOLDS[level - 1] ?? 0;
+  const levelStart = level > 0 ? (LEVEL_THRESHOLDS[level - 1] ?? 0) : 0;
   const levelEnd = LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!;
   return { levelStart, levelEnd };
 }

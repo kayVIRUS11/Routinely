@@ -14,7 +14,8 @@ export async function DELETE(req: NextRequest) {
 
   const admin = getSupabaseAdmin();
 
-  const { data: { user }, error: authError } = await admin.auth.getUser(token);
+  const { data, error: authError } = await admin.auth.getUser(token);
+  const user = data?.user;
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

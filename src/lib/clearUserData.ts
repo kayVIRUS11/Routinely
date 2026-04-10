@@ -16,6 +16,7 @@ const SETTINGS_KEYS = [
   "onboarding_characterName",
   "profile_avatarColor",
   "routinely_user_id",
+  "routinely_guest_user_id",
   "theme",
 ];
 
@@ -33,7 +34,7 @@ export async function clearUserData(userId: string | null): Promise<void> {
         await table.filter((r) => (r as { user_id: string | null }).user_id === null).delete();
       }
     } catch {
-      // Some tables may not have user_id index — skip
+      // Some tables may not have a user_id index — those are skipped intentionally
     }
   }
 
