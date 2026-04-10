@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Sparkles, X, Send, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AIMessage {
   role: "user" | "assistant";
@@ -22,6 +23,7 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { session, isGuest } = useAuth();
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -32,9 +34,14 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
     setLoading(true);
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session && !isGuest) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           message: userMsg,
           context: {
@@ -42,6 +49,7 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
             type: "natural_language_input",
             conversationHistory: messages,
           },
+          ...(isGuest ? { guest: true } : {}),
         }),
       });
 

@@ -36,6 +36,52 @@ const modeItemsConfig = [
 
 type ModeKey = (typeof modeItemsConfig)[number]["modeKey"];
 
+interface SettingsMode {
+  id: string;
+  enabled: boolean;
+  builtin: boolean;
+}
+
+function useEnabledModes(): Set<string> {
+  const [enabledIds, setEnabledIds] = useState<Set<string>>(() => {
+    // All modes enabled by default
+    return new Set(modeItemsConfig.map((m) => m.modeKey));
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const loadEnabled = () => {
+      try {
+        const raw = localStorage.getItem("settings_modes");
+        if (raw) {
+          const stored = JSON.parse(raw) as SettingsMode[];
+          const ids = new Set(stored.filter((m) => m.enabled).map((m) => m.id));
+          setEnabledIds(ids);
+        }
+      } catch { /* ignore */ }
+    };
+
+    loadEnabled();
+
+    // Re-check when storage changes (e.g. settings page saves)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "settings_modes") loadEnabled();
+    };
+    window.addEventListener("storage", onStorage);
+    // Also poll on focus to catch same-tab changes
+    const onFocus = () => loadEnabled();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
+
+  return enabledIds;
+}
+
 function useBadges(): Record<ModeKey | string, number> {
   const [badges, setBadges] = useState<Record<string, number>>({
     study: 0,
@@ -143,21 +189,45 @@ export default function Sidebar() {
   const [showNewMode, setShowNewMode] = useState(false);
   const [customModes, setCustomModes] = useState<CustomMode[]>([]);
   const badges = useBadges();
+  const enabledModes = useEnabledModes();
+
+  const loadCustomModes = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem("custom_modes");
+      setCustomModes(stored ? (JSON.parse(stored) as CustomMode[]) : []);
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("custom_modes");
-      if (stored) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCustomModes(JSON.parse(stored) as CustomMode[]);
-      }
-    }
-  }, []);
+    loadCustomModes();
+    // Re-load when settings change (storage event covers cross-tab; focus covers same-tab)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "custom_modes" || e.key === "settings_modes") loadCustomModes();
+    };
+    const onFocus = () => loadCustomModes();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loadCustomModes]);
 
   const handleModeCreated = (mode: CustomMode) => {
     setCustomModes((prev) => [...prev, mode]);
     setShowNewMode(false);
   };
+
+  // Filter built-in modes based on enabled state from settings
+  const visibleBuiltinModes = modeItemsConfig.filter((item) => enabledModes.has(item.modeKey));
+
+  // Filter custom modes: show if in enabledModes set OR if settings_modes hasn't been set yet
+  // (enabledModes starts as all built-in ids, so custom modes always show until explicitly disabled)
+  const settingsModesLoaded = typeof window !== "undefined" && !!localStorage.getItem("settings_modes");
+  const visibleCustomModes = customModes.filter((mode) =>
+    !settingsModesLoaded || enabledModes.has(mode.id)
+  );
 
   return (
     <>
@@ -200,7 +270,7 @@ export default function Sidebar() {
           <div className="my-2 mx-3 border-t border-border" />
 
           {/* Built-in mode items */}
-          {modeItemsConfig.map((item) => (
+          {visibleBuiltinModes.map((item) => (
             <SidebarItem
               key={item.href}
               href={item.href}
@@ -213,7 +283,7 @@ export default function Sidebar() {
           ))}
 
           {/* Custom modes */}
-          {customModes.map((mode) => (
+          {visibleCustomModes.map((mode) => (
             <SidebarCustomItem
               key={mode.id}
               mode={mode}

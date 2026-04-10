@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Settings,
   Palette,
@@ -14,16 +14,20 @@ import {
   Plus,
   Check,
   X,
-  Eye,
-  EyeOff,
-  Lock,
+  Pencil,
   ChevronUp,
   ChevronDown,
+  AlertCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
+import { clearUserData } from "@/lib/clearUserData";
+import type { CustomMode } from "@/components/sidebar/NewModeModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +59,6 @@ interface AccountSettings {
   displayName: string;
   email: string;
   avatarInitial: string;
-  googleLinked: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -219,10 +222,9 @@ const DEFAULT_APPEARANCE: AppearanceSettings = {
 };
 
 const DEFAULT_ACCOUNT: AccountSettings = {
-  displayName: "Alex Johnson",
-  email: "alex@example.com",
-  avatarInitial: "A",
-  googleLinked: false,
+  displayName: "",
+  email: "",
+  avatarInitial: "?",
 };
 
 // ─── Toggle Switch ────────────────────────────────────────────────────────────
@@ -310,16 +312,69 @@ function readStorage<T>(key: string, fallback: T): T {
   }
 }
 
+// ─── Helpers: convert CustomMode ↔ Mode ──────────────────────────────────────
+
+const SECTION_LABEL_MAP: Record<string, string> = {
+  tasks: "Tasks",
+  habits: "Habits",
+  routine: "Routine",
+  notes: "Notes",
+  timer: "Timer",
+  tracker: "Tracker",
+  goals: "Goals",
+  log: "Log",
+};
+
+function customModeToMode(cm: CustomMode): Mode {
+  return {
+    id: cm.id,
+    label: cm.name,
+    icon: cm.icon,
+    builtin: false,
+    enabled: true,
+    sections: cm.sections.map((s) => ({
+      id: s,
+      label: SECTION_LABEL_MAP[s] ?? s,
+      enabled: true,
+    })),
+  };
+}
+
+function modeToCustomMode(m: Mode): CustomMode {
+  return {
+    id: m.id,
+    name: m.label,
+    icon: m.icon,
+    sections: m.sections.filter((s) => s.enabled).map((s) => s.id),
+  };
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const { user, session, isGuest, signOut } = useAuth();
   const [activeSection, setActiveSection] = useState<SectionId>("modes");
 
-  // Lazy-initialise from localStorage to avoid cascading setState-in-effect
-  const [modes, setModes] = useState<Mode[]>(() =>
-    readStorage("settings_modes", DEFAULT_MODES)
-  );
+  // ── Modes state: merges settings_modes + custom_modes ──────────────────────
+
+  const [modes, setModes] = useState<Mode[]>(() => {
+    const stored = readStorage<Mode[]>("settings_modes", DEFAULT_MODES);
+    // Merge in any custom_modes not already tracked in settings_modes
+    const customStored = readStorage<CustomMode[]>("custom_modes", []);
+    const storedIds = new Set(stored.map((m) => m.id));
+    const merged = [...stored];
+    for (const cm of customStored) {
+      if (!storedIds.has(cm.id)) {
+        merged.push(customModeToMode(cm));
+      }
+    }
+    return merged;
+  });
+
   const [expandedMode, setExpandedMode] = useState<string | null>(null);
+  const [editingModeId, setEditingModeId] = useState<string | null>(null);
+  const [editingModeLabel, setEditingModeLabel] = useState("");
   const [newModeName, setNewModeName] = useState("");
   const [showAddMode, setShowAddMode] = useState(false);
 
@@ -339,21 +394,32 @@ export default function SettingsPage() {
     readStorage("settings_notifications", DEFAULT_NOTIFICATION)
   );
 
-  const [account, setAccount] = useState<AccountSettings>(() =>
-    readStorage("settings_account", DEFAULT_ACCOUNT)
-  );
+  // Account: initialised from auth user, NOT from localStorage dummy data
+  const [account, setAccount] = useState<AccountSettings>(DEFAULT_ACCOUNT);
   const [editingName, setEditingName] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
-  const [nameInput, setNameInput] = useState(() =>
-    readStorage<AccountSettings>("settings_account", DEFAULT_ACCOUNT).displayName
-  );
-  const [emailInput, setEmailInput] = useState(() =>
-    readStorage<AccountSettings>("settings_account", DEFAULT_ACCOUNT).email
-  );
-  const [showPassword, setShowPassword] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [deleteInput, setDeleteInput] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+
+  // Sync account state from auth whenever user changes
+  useEffect(() => {
+    if (user) {
+      const name = (user.user_metadata?.full_name as string | undefined) ?? "";
+      const email = user.email ?? "";
+      const initial = name ? name[0].toUpperCase() : (email ? email[0].toUpperCase() : "?");
+      setAccount({ displayName: name, email, avatarInitial: initial });
+      setNameInput(name);
+      setEmailInput(email);
+    } else if (isGuest) {
+      setAccount({ displayName: "Guest", email: "", avatarInitial: "G" });
+      setNameInput("Guest");
+      setEmailInput("");
+    }
+  }, [user, isGuest]);
 
   // Apply theme on first render
   useEffect(() => {
@@ -361,9 +427,12 @@ export default function SettingsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist modes
+  // Persist modes to settings_modes AND sync back to custom_modes
   useEffect(() => {
     localStorage.setItem("settings_modes", JSON.stringify(modes));
+    // Sync non-builtin modes back to custom_modes
+    const customModes = modes.filter((m) => !m.builtin).map(modeToCustomMode);
+    localStorage.setItem("custom_modes", JSON.stringify(customModes));
   }, [modes]);
 
   // Persist appearance + apply theme
@@ -377,11 +446,6 @@ export default function SettingsPage() {
   useEffect(() => {
     localStorage.setItem("settings_notifications", JSON.stringify(notifications));
   }, [notifications]);
-
-  // Persist account
-  useEffect(() => {
-    localStorage.setItem("settings_account", JSON.stringify(account));
-  }, [account]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -421,10 +485,23 @@ export default function SettingsPage() {
     });
   }
 
+  function startEditModeLabel(mode: Mode) {
+    setEditingModeId(mode.id);
+    setEditingModeLabel(mode.label);
+  }
+
+  function saveModeLabel(id: string) {
+    const trimmed = editingModeLabel.trim();
+    if (!trimmed) return;
+    setModes((prev) => prev.map((m) => (m.id === id ? { ...m, label: trimmed } : m)));
+    setEditingModeId(null);
+    flash("Mode renamed");
+  }
+
   function addMode() {
     const trimmed = newModeName.trim();
     if (!trimmed) return;
-    const id = trimmed.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now();
+    const id = `custom_${trimmed.toLowerCase().replace(/\s+/g, "-")}_${Date.now()}`;
     setModes((prev) => [
       ...prev,
       {
@@ -462,20 +539,7 @@ export default function SettingsPage() {
       modes,
       appearance,
       notifications,
-      account: { ...account },
-      mockData: {
-        tasks: [
-          { id: "1", title: "Review quarterly goals", completed: false, date: new Date().toISOString() },
-          { id: "2", title: "Morning workout", completed: true, date: new Date().toISOString() },
-        ],
-        habits: [
-          { id: "1", title: "Meditate", frequency: "daily", streak: 7 },
-          { id: "2", title: "Read 30 min", frequency: "daily", streak: 14 },
-        ],
-        journal: [
-          { id: "1", date: new Date().toISOString(), content: "Productive day overall." },
-        ],
-      },
+      account: { displayName: account.displayName, email: account.email },
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -487,8 +551,15 @@ export default function SettingsPage() {
     flash("Data exported");
   }
 
-  function handleSaveName() {
-    if (!nameInput.trim()) return;
+  const handleSaveName = useCallback(async () => {
+    if (!nameInput.trim() || isGuest) return;
+    const { error } = await supabase.auth.updateUser({
+      data: { full_name: nameInput.trim() },
+    });
+    if (error) {
+      flash("Failed to update name");
+      return;
+    }
     setAccount((prev) => ({
       ...prev,
       displayName: nameInput.trim(),
@@ -496,22 +567,56 @@ export default function SettingsPage() {
     }));
     setEditingName(false);
     flash("Name updated");
-  }
+  }, [nameInput, isGuest]);
 
-  function handleSaveEmail() {
-    if (!emailInput.trim()) return;
+  const handleSaveEmail = useCallback(async () => {
+    if (!emailInput.trim() || isGuest) return;
+    const { error } = await supabase.auth.updateUser({ email: emailInput.trim() });
+    if (error) {
+      flash("Failed to update email: " + error.message);
+      return;
+    }
     setAccount((prev) => ({ ...prev, email: emailInput.trim() }));
     setEditingEmail(false);
-    flash("Email updated");
+    flash("Confirmation email sent — check your inbox");
+  }, [emailInput, isGuest]);
+
+  async function handleChangePassword() {
+    if (!account.email || isGuest) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(account.email);
+    if (error) {
+      flash("Failed to send reset email");
+    } else {
+      flash("Password reset email sent");
+    }
   }
 
-  function handleDeleteAccount() {
+  const handleDeleteAccount = useCallback(async () => {
     if (deleteInput !== "DELETE") return;
-    // In a real app this would call an API; for now just reset
-    setDeleteInput("");
-    setShowDeleteConfirm(false);
-    flash("Account deletion requested");
-  }
+    setDeleteError("");
+
+    const userId = user?.id ?? null;
+
+    // Call the delete API (only for authenticated users)
+    if (!isGuest && session) {
+      const res = await fetch("/api/user/delete", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        setDeleteError(data.error ?? "Failed to delete account");
+        return;
+      }
+    }
+
+    // Clear all local data
+    await clearUserData(userId);
+
+    // Sign out and redirect to landing
+    await signOut();
+    router.push("/");
+  }, [deleteInput, isGuest, session, user, signOut, router]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -628,13 +733,47 @@ export default function SettingsPage() {
                         </div>
 
                         <span className="text-base leading-none">{mode.icon}</span>
-                        <span className="flex-1 text-sm font-medium text-text-primary">
-                          {mode.label}
-                        </span>
-                        {!mode.builtin && (
-                          <span className="text-xs text-text-secondary border border-border rounded px-1.5 py-0.5">
-                            custom
-                          </span>
+
+                        {/* Label — inline editable for custom modes */}
+                        {editingModeId === mode.id ? (
+                          <div className="flex-1 flex items-center gap-1">
+                            <input
+                              value={editingModeLabel}
+                              onChange={(e) => setEditingModeLabel(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveModeLabel(mode.id);
+                                if (e.key === "Escape") setEditingModeId(null);
+                              }}
+                              autoFocus
+                              className="flex-1 text-sm bg-background border border-primary rounded px-2 py-0.5 text-text-primary focus:outline-none"
+                            />
+                            <button onClick={() => saveModeLabel(mode.id)} className="text-primary hover:text-primary/80">
+                              <Check size={14} />
+                            </button>
+                            <button onClick={() => setEditingModeId(null)} className="text-text-secondary hover:text-text-primary">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-medium text-text-primary truncate">
+                              {mode.label}
+                            </span>
+                            {!mode.builtin && (
+                              <>
+                                <span className="text-xs text-text-secondary border border-border rounded px-1.5 py-0.5 shrink-0">
+                                  custom
+                                </span>
+                                <button
+                                  onClick={() => startEditModeLabel(mode)}
+                                  className="text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                                  aria-label="Rename mode"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         )}
 
                         {/* Expand sections */}
@@ -642,7 +781,7 @@ export default function SettingsPage() {
                           onClick={() =>
                             setExpandedMode((v) => (v === mode.id ? null : mode.id))
                           }
-                          className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2"
+                          className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2 shrink-0"
                         >
                           Sections
                         </button>
@@ -655,10 +794,10 @@ export default function SettingsPage() {
                         {!mode.builtin && (
                           <button
                             onClick={() => removeMode(mode.id)}
-                            className="text-text-secondary hover:text-error transition-colors ml-1"
-                            aria-label="Remove mode"
+                            className="text-text-secondary hover:text-error transition-colors ml-1 shrink-0"
+                            aria-label="Delete mode"
                           >
-                            <X size={14} />
+                            <Trash2 size={14} />
                           </button>
                         )}
                       </div>
@@ -669,6 +808,9 @@ export default function SettingsPage() {
                           <p className="text-xs text-text-secondary font-medium uppercase tracking-wide mb-2">
                             Sections
                           </p>
+                          {mode.sections.length === 0 && (
+                            <p className="text-xs text-text-secondary italic">No sections configured.</p>
+                          )}
                           {mode.sections.map((section) => (
                             <div
                               key={section.id}
@@ -879,6 +1021,14 @@ export default function SettingsPage() {
           {/* ── Account ───────────────────────────────────────────────────── */}
           {activeSection === "account" && (
             <>
+              {isGuest && (
+                <Card className="border-warning/30 bg-warning/5">
+                  <p className="text-sm text-text-secondary">
+                    You are browsing as a guest. Sign in to access account settings.
+                  </p>
+                </Card>
+              )}
+
               <Card>
                 <h2 className="text-base font-semibold text-text-primary mb-4">
                   Profile
@@ -891,9 +1041,9 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-text-primary">
-                      {account.displayName}
+                      {account.displayName || "—"}
                     </p>
-                    <p className="text-xs text-text-secondary">{account.email}</p>
+                    <p className="text-xs text-text-secondary">{account.email || "—"}</p>
                   </div>
                 </div>
 
@@ -907,10 +1057,10 @@ export default function SettingsPage() {
                       <Input
                         value={nameInput}
                         onChange={(e) => setNameInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                        onKeyDown={(e) => e.key === "Enter" && void handleSaveName()}
                         className="flex-1"
                       />
-                      <Button size="sm" onClick={handleSaveName}>
+                      <Button size="sm" onClick={() => void handleSaveName()}>
                         Save
                       </Button>
                       <Button
@@ -924,11 +1074,12 @@ export default function SettingsPage() {
                   ) : (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-text-secondary">
-                        {account.displayName}
+                        {account.displayName || "—"}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={isGuest}
                         onClick={() => setEditingName(true)}
                       >
                         Edit
@@ -948,10 +1099,10 @@ export default function SettingsPage() {
                         type="email"
                         value={emailInput}
                         onChange={(e) => setEmailInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSaveEmail()}
+                        onKeyDown={(e) => e.key === "Enter" && void handleSaveEmail()}
                         className="flex-1"
                       />
-                      <Button size="sm" onClick={handleSaveEmail}>
+                      <Button size="sm" onClick={() => void handleSaveEmail()}>
                         Save
                       </Button>
                       <Button
@@ -965,11 +1116,12 @@ export default function SettingsPage() {
                   ) : (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-text-secondary">
-                        {account.email}
+                        {account.email || "—"}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={isGuest}
                         onClick={() => setEditingEmail(true)}
                       >
                         Edit
@@ -979,55 +1131,19 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Password */}
-                <div className="py-4 border-b border-border">
+                <div className="py-4">
                   <p className="text-sm font-medium text-text-primary mb-2">
                     Password
                   </p>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-text-secondary">
-                      <Lock size={14} />
-                      <span className="text-sm">
-                        {showPassword ? "hunter2" : "••••••••"}
-                      </span>
-                      <button
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="text-text-secondary hover:text-text-primary transition-colors"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => flash("Change password email sent")}>
-                      Change
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Google */}
-                <div className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-text-primary">
-                        Google Account
-                      </p>
-                      <p className="text-xs text-text-secondary mt-0.5">
-                        {account.googleLinked
-                          ? "Linked — sign in with Google"
-                          : "Not linked"}
-                      </p>
-                    </div>
+                    <span className="text-sm text-text-secondary">••••••••</span>
                     <Button
-                      variant={account.googleLinked ? "danger" : "secondary"}
+                      variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        setAccount((prev) => ({
-                          ...prev,
-                          googleLinked: !prev.googleLinked,
-                        }));
-                        flash(account.googleLinked ? "Google unlinked" : "Google linked");
-                      }}
+                      disabled={isGuest}
+                      onClick={() => void handleChangePassword()}
                     >
-                      {account.googleLinked ? "Unlink" : "Link Google"}
+                      Reset via email
                     </Button>
                   </div>
                 </div>
@@ -1041,7 +1157,7 @@ export default function SettingsPage() {
 
                 <SectionRow
                   label="Export All Data"
-                  description="Download a JSON export of all your Routinely data"
+                  description="Download a JSON export of your Routinely settings"
                 >
                   <Button variant="secondary" size="sm" onClick={handleExport}>
                     <Download size={14} />
@@ -1066,16 +1182,24 @@ export default function SettingsPage() {
                     onClick={() => setShowDeleteConfirm(true)}
                   >
                     <Trash2 size={14} />
-                    Delete Account
+                    {isGuest ? "Clear All Data" : "Delete Account"}
                   </Button>
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm text-text-secondary">
-                      This will permanently delete your account and all associated
-                      data. Type{" "}
+                      {isGuest
+                        ? "This will clear all your local data and reset the app."
+                        : "This will permanently delete your account and all associated data."}{" "}
+                      Type{" "}
                       <span className="font-mono font-bold text-error">DELETE</span>{" "}
                       to confirm.
                     </p>
+                    {deleteError && (
+                      <div className="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-lg text-xs text-error">
+                        <AlertCircle size={14} />
+                        <span>{deleteError}</span>
+                      </div>
+                    )}
                     <Input
                       placeholder='Type "DELETE" to confirm'
                       value={deleteInput}
@@ -1086,15 +1210,15 @@ export default function SettingsPage() {
                         variant="danger"
                         size="sm"
                         disabled={deleteInput !== "DELETE"}
-                        onClick={handleDeleteAccount}
+                        onClick={() => void handleDeleteAccount()}
                       >
                         <Trash2 size={14} />
-                        Permanently Delete
+                        {isGuest ? "Clear & Reset" : "Permanently Delete"}
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => { setShowDeleteConfirm(false); setDeleteInput(""); }}
+                        onClick={() => { setShowDeleteConfirm(false); setDeleteInput(""); setDeleteError(""); }}
                       >
                         Cancel
                       </Button>
@@ -1165,11 +1289,15 @@ export default function SettingsPage() {
                   </li>
                   <li>
                     <span className="text-text-primary font-medium">Auth</span> —{" "}
-                    NextAuth.js
+                    Supabase Auth
                   </li>
                   <li>
                     <span className="text-text-primary font-medium">Database</span> —{" "}
-                    Prisma + PostgreSQL
+                    Supabase + Dexie (offline-first)
+                  </li>
+                  <li>
+                    <span className="text-text-primary font-medium">AI</span> —{" "}
+                    Google Gemini
                   </li>
                   <li>
                     <span className="text-text-primary font-medium">Typography</span> —{" "}

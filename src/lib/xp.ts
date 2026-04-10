@@ -55,6 +55,17 @@ export function xpToNextLevel(xp: number): number {
   return (LEVEL_THRESHOLDS[level] ?? 0) - xp;
 }
 
+/**
+ * Returns the XP threshold at the start of the current level and the next level,
+ * useful for rendering a progress bar.
+ */
+export function xpThresholdsForLevel(xp: number): { levelStart: number; levelEnd: number } {
+  const level = levelFromXP(xp);
+  const levelStart = LEVEL_THRESHOLDS[level - 1] ?? 0;
+  const levelEnd = LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!;
+  return { levelStart, levelEnd };
+}
+
 // ─── Per-action XP awards ─────────────────────────────────────────────────────
 
 export const XP_AWARDS = {
