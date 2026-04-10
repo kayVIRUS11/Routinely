@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Sparkles, X, Loader2, FileText, AlertCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AIModeReviewProps {
   modeName: string;
@@ -14,17 +15,24 @@ export default function AIModeReview({ modeName, modeData, onClose }: AIModeRevi
   const [review, setReview] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { session, isGuest } = useAuth();
 
   const generateReview = async () => {
     setLoading(true);
     setError("");
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session && !isGuest) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           message: `Generate a detailed review and summary for the ${modeName} mode based on this data. Provide insights, patterns, recommendations, and encouragement. Format with clear sections using markdown-style headers (##). Data: ${JSON.stringify(modeData)}`,
           context: { type: "mode_review", mode: modeName, data: modeData },
+          ...(isGuest ? { guest: true } : {}),
         }),
       });
 

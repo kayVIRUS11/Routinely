@@ -17,6 +17,9 @@ import {
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/db/db";
+import { levelFromXP, xpThresholdsForLevel } from "@/lib/xp";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,10 +92,6 @@ const RARITY_LABEL: Record<Achievement["rarity"], string> = {
 function getLevelTitle(level: number): string {
   const entry = LEVEL_TITLES.find((t) => level >= t.minLevel && level <= t.maxLevel);
   return entry?.title ?? "The Balanced One";
-}
-
-function xpForLevel(level: number): number {
-  return level * 100 + (level - 1) * 50;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -209,20 +208,38 @@ export default function ProfilePage() {
   const [characterName, setCharacterName] = useState("Hero");
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0].value);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [userXp, setUserXp] = useState(0);
+  const { user, isGuest } = useAuth();
 
-  // Mock RPG data
-  const level = 7;
-  const currentXp = 340;
-  const maxXp = xpForLevel(level + 1);
+  // Compute level and XP info from real data
+  const level = levelFromXP(userXp);
+  const { levelStart, levelEnd } = xpThresholdsForLevel(userXp);
+  const currentXp = userXp - levelStart;
+  const maxXp = levelEnd - levelStart;
   const title = getLevelTitle(level);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("onboarding_characterName");
-    if (stored) setCharacterName(stored);
+
+    // Prefer auth user's full name, then onboarding localStorage, then fallback
+    const authName = user?.user_metadata?.full_name as string | undefined;
+    const storedName = localStorage.getItem("onboarding_characterName");
+    setCharacterName(authName ?? storedName ?? (isGuest ? "Guest" : "Hero"));
+
     const storedColor = localStorage.getItem("profile_avatarColor");
     if (storedColor) setAvatarColor(storedColor);
-  }, []);
+
+    // Load XP from db.users
+    const loadXp = async () => {
+      try {
+        const userId = user?.id ?? localStorage.getItem("routinely_guest_user_id");
+        if (!userId) return;
+        const dbUser = await db.users.where("user_id").equals(userId).first();
+        if (dbUser) setUserXp(dbUser.xp ?? 0);
+      } catch { /* IndexedDB not available */ }
+    };
+    void loadXp();
+  }, [user, isGuest]);
 
   function handleColorSelect(color: string) {
     setAvatarColor(color);
@@ -433,7 +450,7 @@ export default function ProfilePage() {
               </span>
               <span className="text-xs text-text-secondary flex items-center gap-1">
                 <Zap className="w-3 h-3 text-yellow-400" />
-                {currentXp} total XP
+                {userXp} total XP
               </span>
             </div>
             <XpBar current={currentXp} max={maxXp} />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2, Check, X, AlertCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface GeneratedRoutineSlot {
   title: string;
@@ -24,6 +25,7 @@ export default function AIRoutineCreator({ modeName, onConfirm, onClose }: AIRou
   const [generated, setGenerated] = useState<GeneratedRoutineSlot[]>([]);
   const [error, setError] = useState("");
   const [step, setStep] = useState<"input" | "review">("input");
+  const { session, isGuest } = useAuth();
 
   const handleGenerate = async () => {
     if (!description.trim()) return;
@@ -31,12 +33,18 @@ export default function AIRoutineCreator({ modeName, onConfirm, onClose }: AIRou
     setError("");
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session && !isGuest) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           message: `Create a weekly routine for ${modeName} mode based on this description: "${description}". Return ONLY a JSON array of routine slots. Each slot must have: "title" (string), "day" (one of: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday), "startTime" (HH:MM 24h format), "endTime" (HH:MM 24h format). Example: [{"title":"Study Maths","day":"Monday","startTime":"09:00","endTime":"10:30"}]. Generate 5-10 slots spread across the week.`,
           context: { type: "routine_creation", mode: modeName },
+          ...(isGuest ? { guest: true } : {}),
         }),
       });
 
