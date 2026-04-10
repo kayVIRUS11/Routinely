@@ -1,17 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
+const SYSTEM_PROMPT =
+  "You are Routinely's AI assistant helping users manage their daily life, routines, and goals. Be concise, helpful, and motivational.";
 
-// ─── Safety settings (applied to all Gemini calls) ────────────────────────────
+async function callOpenRouter(prompt: string): Promise<string> {
+  const res = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
 
-const SAFETY_SETTINGS = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-];
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OpenRouter error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  return data.choices[0].message.content;
+}
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 
@@ -52,7 +70,7 @@ Write 2-3 sentences highlighting their progress, one area to improve, and an enc
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json({ error: "AI service is not configured" }, { status: 503 });
   }
 
@@ -84,17 +102,10 @@ export async function POST(req: NextRequest) {
   const prompt = buildPrompt(feature, body);
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction:
-        "You are Routinely's AI assistant helping users manage their daily life, routines, and goals. Be concise, helpful, and motivational.",
-      safetySettings: SAFETY_SETTINGS,
-    });
-
-    const result = await model.generateContent(prompt);
+    const text = await callOpenRouter(prompt);
 
     return NextResponse.json({
-      response: result.response.text(),
+      response: text,
       feature,
     });
   } catch (err) {
