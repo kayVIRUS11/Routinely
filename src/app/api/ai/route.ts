@@ -57,18 +57,27 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json()) as Record<string, unknown>;
-  const isGuest = body.guest === true;
 
-  // Require auth for non-guest requests
-  if (!isGuest) {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Guests must sign up before using AI features
+  if (body.guest === true) {
+    return NextResponse.json(
+      { error: "Sign up to unlock AI features" },
+      { status: 401 },
+    );
+  }
+
+  // Require a valid Supabase session token
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  try {
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+  } catch {
+    return NextResponse.json({ error: "AI service is temporarily unavailable" }, { status: 503 });
   }
 
   const feature = typeof body.feature === "string" ? body.feature : "general";
@@ -76,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction:
         "You are Routinely's AI assistant helping users manage their daily life, routines, and goals. Be concise, helpful, and motivational.",
       safetySettings: SAFETY_SETTINGS,

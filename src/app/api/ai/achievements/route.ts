@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
@@ -17,6 +18,23 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as { modeName?: string; sections?: string[]; guest?: boolean };
 
+  if (body.guest === true) {
+    return NextResponse.json({ success: false, message: "Sign up to unlock AI features" }, { status: 401 });
+  }
+
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  }
+  try {
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+  } catch {
+    return NextResponse.json({ success: false, message: "AI service is temporarily unavailable" }, { status: 503 });
+  }
+
   const prompt = `Generate exactly 8 achievements for a custom productivity mode called "${body.modeName ?? "My Mode"}" with these sections: ${(body.sections ?? []).join(", ")}.
 
 Return ONLY a valid JSON array. No markdown, no explanation. Each object must have:
@@ -31,7 +49,7 @@ Example format:
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
       safetySettings: SAFETY_SETTINGS,
     });
