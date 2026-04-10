@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
@@ -15,7 +16,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "AI service is not configured" }, { status: 503 });
   }
 
-  const body = (await req.json()) as { usageData?: unknown; activeModes?: string[] };
+  const body = (await req.json()) as { usageData?: unknown; activeModes?: string[]; guest?: boolean };
+
+  if (body.guest === true) {
+    return NextResponse.json({ success: false, message: "Sign up to unlock AI features" }, { status: 401 });
+  }
+
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  }
+  try {
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+  } catch {
+    return NextResponse.json({ success: false, message: "AI service is temporarily unavailable" }, { status: 503 });
+  }
 
   const prompt = `You are an adaptive planning AI for Routinely, a personal productivity app.
 The user has these active modes: ${(body.activeModes ?? []).join(", ")}.

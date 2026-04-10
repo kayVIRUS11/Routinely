@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Sparkles, X, Send, Loader2, AlertCircle } from "lucide-react";
+import { Sparkles, X, Send, Loader2, AlertCircle, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 interface AIMessage {
   role: "user" | "assistant";
@@ -24,6 +25,7 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const { session, isGuest } = useAuth();
+  const router = useRouter();
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -35,7 +37,7 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session && !isGuest) {
+      if (session) {
         headers["Authorization"] = `Bearer ${session.access_token}`;
       }
 
@@ -49,7 +51,6 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
             type: "natural_language_input",
             conversationHistory: messages,
           },
-          ...(isGuest ? { guest: true } : {}),
         }),
       });
 
@@ -89,80 +90,112 @@ export function NaturalLanguageInput({ onClose, context, placeholder, title }: N
           </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-          {messages.length === 0 && (
-            <div className="text-center py-8">
-              <Sparkles className="w-10 h-10 text-primary/40 mx-auto mb-3" />
-              <p className="text-text-secondary text-sm">
-                {placeholder ?? "Ask me anything — I can add tasks, log expenses, create routines, and more."}
+        {isGuest ? (
+          /* Guest gate */
+          <div className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <p className="text-text-primary font-semibold mb-1">AI features require an account</p>
+              <p className="text-sm text-text-secondary">
+                Create a free account to unlock the AI assistant and all smart features.
               </p>
-              <div className="mt-4 flex flex-col gap-1.5">
-                {[
-                  "Add a Chemistry exam on Friday",
-                  "Log ₦2,500 spent on food today",
-                  "Remind me to review budget every Sunday",
-                  "Generate a study routine for Maths and Physics",
-                ].map((ex) => (
-                  <button
-                    key={ex}
-                    onClick={() => setInput(ex)}
-                    className="text-xs text-left px-3 py-2 bg-background rounded-lg border border-border text-text-secondary hover:text-text-primary hover:border-primary/40 transition-all"
-                  >
-                    &quot;{ex}&quot;
-                  </button>
-                ))}
-              </div>
             </div>
-          )}
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={cn(
-                "max-w-[85%] px-3 py-2 rounded-xl text-sm",
-                msg.role === "user"
-                  ? "bg-primary text-white self-end rounded-br-sm"
-                  : "bg-background border border-border text-text-primary self-start rounded-bl-sm"
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary hover:text-text-primary text-sm transition-colors"
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => { onClose(); router.push("/sign-up"); }}
+                className="flex-1 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Sign up free
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+              {messages.length === 0 && (
+                <div className="text-center py-8">
+                  <Sparkles className="w-10 h-10 text-primary/40 mx-auto mb-3" />
+                  <p className="text-text-secondary text-sm">
+                    {placeholder ?? "Ask me anything — I can add tasks, log expenses, create routines, and more."}
+                  </p>
+                  <div className="mt-4 flex flex-col gap-1.5">
+                    {[
+                      "Add a Chemistry exam on Friday",
+                      "Log ₦2,500 spent on food today",
+                      "Remind me to review budget every Sunday",
+                      "Generate a study routine for Maths and Physics",
+                    ].map((ex) => (
+                      <button
+                        key={ex}
+                        onClick={() => setInput(ex)}
+                        className="text-xs text-left px-3 py-2 bg-background rounded-lg border border-border text-text-secondary hover:text-text-primary hover:border-primary/40 transition-all"
+                      >
+                        &quot;{ex}&quot;
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
-            >
-              {msg.content}
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "max-w-[85%] px-3 py-2 rounded-xl text-sm",
+                    msg.role === "user"
+                      ? "bg-primary text-white self-end rounded-br-sm"
+                      : "bg-background border border-border text-text-primary self-start rounded-bl-sm"
+                  )}
+                >
+                  {msg.content}
+                </div>
+              ))}
+              {loading && (
+                <div className="flex items-center gap-2 self-start">
+                  <div className="w-8 h-8 bg-background border border-border rounded-xl flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                  </div>
+                  <span className="text-xs text-text-secondary">Thinking…</span>
+                </div>
+              )}
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl text-xs text-error">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+              <div ref={bottomRef} />
             </div>
-          ))}
-          {loading && (
-            <div className="flex items-center gap-2 self-start">
-              <div className="w-8 h-8 bg-background border border-border rounded-xl flex items-center justify-center">
-                <Loader2 className="w-4 h-4 text-primary animate-spin" />
-              </div>
-              <span className="text-xs text-text-secondary">Thinking…</span>
-            </div>
-          )}
-          {error && (
-            <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl text-xs text-error">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-border shrink-0 flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
-            placeholder="Type anything…"
-            className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-text-primary placeholder-text-secondary text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
-          <button
-            onClick={() => void send()}
-            disabled={!input.trim() || loading}
-            className="w-9 h-9 bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-lg flex items-center justify-center transition-colors shrink-0"
-          >
-            <Send className="w-4 h-4 text-white" />
-          </button>
-        </div>
+            {/* Input */}
+            <div className="p-4 border-t border-border shrink-0 flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+                placeholder="Type anything…"
+                className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-text-primary placeholder-text-secondary text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+              <button
+                onClick={() => void send()}
+                disabled={!input.trim() || loading}
+                className="w-9 h-9 bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-lg flex items-center justify-center transition-colors shrink-0"
+              >
+                <Send className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
