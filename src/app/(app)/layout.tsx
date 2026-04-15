@@ -5,13 +5,12 @@ import Sidebar from "@/components/sidebar/Sidebar";
 import GuestBanner from "@/components/ui/GuestBanner";
 import { AIFloatingButton, NaturalLanguageInput } from "@/components/ui/AIAssistant";
 import PomodoroBar from "@/components/ui/PomodoroBar";
+import QuickAddButton from "@/components/quick-add/QuickAddButton";
 import { useTimer } from "@/contexts/TimerContext";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [aiOpen, setAiOpen] = useState(false);
   const { state } = useTimer();
-  const { isGuest } = useAuth();
   const timerActive = state.status !== "idle";
 
   return (
@@ -25,8 +24,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           className={[
             "flex-1 p-6",
             timerActive ? "pt-16" : "",
-            isGuest ? "pt-[40px]" : "",
-            timerActive && isGuest ? "pt-[calc(4rem+40px)]" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -35,6 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <AIFloatingButton onClick={() => setAiOpen(true)} />
+      <QuickAddButton />
       {aiOpen && (
         <NaturalLanguageInput
           onClose={() => setAiOpen(false)}

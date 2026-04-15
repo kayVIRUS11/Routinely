@@ -811,7 +811,7 @@ export default function StudyPage() {
                       </div>
                     </div>
                     <p className="text-sm text-text-secondary">{course.lecturer}</p>
-                    <p className="text-xs text-text-secondary mt-0.5">{course.creditUnits} credit unit{course.creditUnits !== 1 ? "s" : ""}</p>
+                    <p className="text-xs text-text-secondary mt-0.5">{course.creditUnits} credit unit{course.creditUnits === 1 ? "" : "s"}</p>
                     {course.notes && (
                       <p className="text-xs text-text-secondary mt-1 line-clamp-2">{course.notes}</p>
                     )}
@@ -1276,8 +1276,8 @@ export default function StudyPage() {
               label="Credit Units"
               type="number"
               value={courseForm.creditUnits}
-              onChange={(e) => setCourseForm((f) => ({ ...f, creditUnits: parseInt(e.target.value) || 1 }))}
-              min={1}
+              onChange={(e) => setCourseForm((f) => ({ ...f, creditUnits: parseInt(e.target.value) || 0 }))}
+              min={0}
               max={12}
             />
             <div className="flex flex-col gap-1.5">

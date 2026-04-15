@@ -101,8 +101,14 @@ function loadLS<T>(key: string): T[] {
 }
 function saveLS<T>(key: string, v: T[]): void { localStorage.setItem(key, JSON.stringify(v)); }
 
+import { formatCurrency } from "@/lib/currency";
+
 function fmt(amount: number): string {
-  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const currency =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("settings_currency") ?? "USD")
+      : "USD";
+  return formatCurrency(amount, currency);
 }
 
 function getNextDueDate(day: number): Date {

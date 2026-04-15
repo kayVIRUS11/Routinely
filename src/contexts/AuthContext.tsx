@@ -11,6 +11,7 @@ import {
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { migrateGuestData } from "@/lib/sync";
+import { db, makeRecord, type DbUser } from "@/db/db";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       if (s) {
         setSession(s);
         setUser(s.user);
@@ -87,6 +88,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // No session — start or resume a guest session
         initGuestSession();
         setIsGuest(true);
+        // Ensure a Dexie user record exists for this guest
+        const guestId = localStorage.getItem(GUEST_USER_ID_KEY);
+        if (guestId && db) {
+          const existing = await db.users.get(guestId);
+          if (!existing) {
+            await db.users.put(
+              makeRecord<DbUser>(
+                {
+                  name: "Guest",
+                  email: null,
+                  avatar_key: null,
+                  onboarding_complete: false,
+                  is_guest: true,
+                  xp: 0,
+                  level: 1,
+                },
+                guestId,
+              ),
+            );
+          }
+        }
       }
       setIsLoading(false);
     });

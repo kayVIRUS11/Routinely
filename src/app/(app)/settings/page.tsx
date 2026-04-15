@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { clearUserData } from "@/lib/clearUserData";
+import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import type { CustomMode } from "@/components/sidebar/NewModeModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -400,6 +401,10 @@ export default function SettingsPage() {
   const [editingEmail, setEditingEmail] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [currency, setCurrency] = useState<string>(() => {
+    if (typeof window === "undefined") return "USD";
+    return localStorage.getItem("settings_currency") ?? "USD";
+  });
   const [deleteInput, setDeleteInput] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -433,6 +438,8 @@ export default function SettingsPage() {
     // Sync non-builtin modes back to custom_modes
     const customModes = modes.filter((m) => !m.builtin).map(modeToCustomMode);
     localStorage.setItem("custom_modes", JSON.stringify(customModes));
+    // Notify sidebar in the same tab
+    window.dispatchEvent(new CustomEvent("settings_modes_changed"));
   }, [modes]);
 
   // Persist appearance + apply theme
@@ -1135,7 +1142,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Password */}
-                <div className="py-4">
+                <div className="py-4 border-b border-border">
                   <p className="text-sm font-medium text-text-primary mb-2">
                     Password
                   </p>
@@ -1149,6 +1156,30 @@ export default function SettingsPage() {
                     >
                       Reset via email
                     </Button>
+                  </div>
+                </div>
+
+                {/* Currency */}
+                <div className="py-4">
+                  <p className="text-sm font-medium text-text-primary mb-2">
+                    Currency
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={currency}
+                      onChange={(e) => {
+                        setCurrency(e.target.value);
+                        localStorage.setItem("settings_currency", e.target.value);
+                      }}
+                      className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      {SUPPORTED_CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-text-secondary">Used in Financial mode</span>
                   </div>
                 </div>
               </Card>

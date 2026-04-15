@@ -64,17 +64,20 @@ function useEnabledModes(): Set<string> {
 
     loadEnabled();
 
-    // Re-check when storage changes (e.g. settings page saves)
+    // Re-check when storage changes (cross-tab) or custom event fires (same-tab)
     const onStorage = (e: StorageEvent) => {
       if (e.key === "settings_modes") loadEnabled();
     };
+    const onCustom = () => loadEnabled();
     window.addEventListener("storage", onStorage);
+    window.addEventListener("settings_modes_changed", onCustom);
     // Also poll on focus to catch same-tab changes
     const onFocus = () => loadEnabled();
     window.addEventListener("focus", onFocus);
 
     return () => {
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("settings_modes_changed", onCustom);
       window.removeEventListener("focus", onFocus);
     };
   }, []);
@@ -174,10 +177,16 @@ function useBadges(): Record<ModeKey | string, number> {
   useEffect(() => {
     void computeBadges();
 
-    // Re-query on window focus
+    // Re-query on window focus or when task/habit data changes
     const onFocus = () => void computeBadges();
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    // Also respond to custom events dispatched when data changes (same-tab)
+    const onDataChange = () => void computeBadges();
+    window.addEventListener("routinely_data_changed", onDataChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("routinely_data_changed", onDataChange);
+    };
   }, [computeBadges]);
 
   return badges;
@@ -204,15 +213,18 @@ export default function Sidebar() {
 
   useEffect(() => {
     loadCustomModes();
-    // Re-load when settings change (storage event covers cross-tab; focus covers same-tab)
+    // Re-load when settings change (storage event covers cross-tab; custom events cover same-tab)
     const onStorage = (e: StorageEvent) => {
       if (e.key === "custom_modes" || e.key === "settings_modes") loadCustomModes();
     };
+    const onCustom = () => loadCustomModes();
     const onFocus = () => loadCustomModes();
     window.addEventListener("storage", onStorage);
+    window.addEventListener("settings_modes_changed", onCustom);
     window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("settings_modes_changed", onCustom);
       window.removeEventListener("focus", onFocus);
     };
   }, [loadCustomModes]);
