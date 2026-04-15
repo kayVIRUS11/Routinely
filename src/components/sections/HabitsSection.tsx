@@ -5,7 +5,7 @@ import { Plus, Check } from "lucide-react";
 import { db, makeRecord, todayISO, type DbHabit, type DbHabitLog } from "@/db/db";
 import { useLiveQuery } from "@/hooks/useLiveQuery";
 import { cn } from "@/lib/utils";
-import { awardXP } from "@/lib/stats";
+import { awardXP, getCurrentUserId } from "@/lib/stats";
 
 interface HabitsSectionProps {
   modeId: string;
@@ -63,11 +63,7 @@ export default function HabitsSection({ modeId }: HabitsSectionProps) {
       });
       await db.habit_logs.add(log);
       // Award XP for habit check-in
-      const userId =
-        typeof window !== "undefined"
-          ? (localStorage.getItem("routinely_user_id") ??
-            localStorage.getItem("routinely_guest_user_id"))
-          : null;
+      const userId = getCurrentUserId();
       if (userId) await awardXP(userId, "balance", 5);
     }
   };

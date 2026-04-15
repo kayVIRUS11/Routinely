@@ -144,6 +144,8 @@ export async function checkAchievements(userId: string): Promise<void> {
     const earned = await db.achievements
       .filter((a) => a.user_id === userId && !a.is_deleted)
       .toArray();
+    // Note: DbAchievement.name stores the achievement definition ID (def.id),
+    // not a display name. This allows de-duplication by logical ID.
     const earnedIds = new Set(earned.map((a) => a.name));
 
     for (const def of ACHIEVEMENTS) {

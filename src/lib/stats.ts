@@ -10,6 +10,19 @@ import { checkAchievements } from "@/lib/achievements";
 export type StatKey = "focus" | "drive" | "vitality" | "wealth" | "balance";
 
 /**
+ * Returns the current user's ID from localStorage.
+ * Works for both authenticated users and guests.
+ */
+export function getCurrentUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    localStorage.getItem("routinely_user_id") ??
+    localStorage.getItem("routinely_guest_user_id") ??
+    null
+  );
+}
+
+/**
  * Award XP to the user and update their level.
  * Also increments the relevant character stat.
  */

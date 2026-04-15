@@ -5,12 +5,14 @@ import { Plus, Check, Trash2, Target } from "lucide-react";
 import { db, makeRecord, type DbPersonalGoal } from "@/db/db";
 import { useLiveQuery } from "@/hooks/useLiveQuery";
 import { cn } from "@/lib/utils";
-import { awardXP } from "@/lib/stats";
+import { awardXP, getCurrentUserId } from "@/lib/stats";
 
 interface GoalsSectionProps {
   modeId: string;
 }
 
+// GoalsSection intentionally shows all personal goals regardless of modeId —
+// personal goals are user-wide and not scoped to a specific mode.
 export default function GoalsSection({ modeId: _modeId }: GoalsSectionProps) {
   const [newTitle, setNewTitle] = useState("");
 
@@ -40,18 +42,17 @@ export default function GoalsSection({ modeId: _modeId }: GoalsSectionProps) {
   const updateProgress = async (id: string, progress: number) => {
     const now = new Date().toISOString();
     const completed = progress >= 100;
+    // Check if previously incomplete to prevent XP farming
+    const existingGoal = goals.find((g) => g.id === id);
+    const wasAlreadyComplete = existingGoal?.completed ?? false;
     await db.personal_goals.update(id, {
       progress,
       completed,
       completed_at: completed ? now : null,
       updated_at: now,
     });
-    if (completed) {
-      const userId =
-        typeof window !== "undefined"
-          ? (localStorage.getItem("routinely_user_id") ??
-            localStorage.getItem("routinely_guest_user_id"))
-          : null;
+    if (completed && !wasAlreadyComplete) {
+      const userId = getCurrentUserId();
       if (userId) await awardXP(userId, "drive", 50);
     }
   };

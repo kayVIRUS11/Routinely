@@ -5,7 +5,7 @@ import { Plus, Check, Trash2 } from "lucide-react";
 import { db, makeRecord, type DbTask } from "@/db/db";
 import { useLiveQuery } from "@/hooks/useLiveQuery";
 import { cn } from "@/lib/utils";
-import { awardXP } from "@/lib/stats";
+import { awardXP, getCurrentUserId } from "@/lib/stats";
 
 interface TasksSectionProps {
   modeId: string;
@@ -45,11 +45,7 @@ export default function TasksSection({ modeId }: TasksSectionProps) {
     });
     if (!completed) {
       // Completing a task — award XP
-      const userId =
-        typeof window !== "undefined"
-          ? (localStorage.getItem("routinely_user_id") ??
-            localStorage.getItem("routinely_guest_user_id"))
-          : null;
+      const userId = getCurrentUserId();
       if (userId) await awardXP(userId, "drive", 10);
     }
   };

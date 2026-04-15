@@ -403,14 +403,16 @@ export default function HomePage() {
       try {
         const routines = await db.routines.filter((r) => r.is_active && !r.is_deleted).toArray();
         dexieSlots = routines.flatMap((r) =>
-          r.day_of_week.map((dayNum) => ({
-            id: `${r.id}-${dayNum}`,
-            title: r.title,
-            day: DAYS_FULL_HOME[dayNum] ?? "Monday",
-            startTime: r.start_time,
-            endTime: r.end_time,
-            source: "Custom",
-          })),
+          r.day_of_week
+            .filter((dayNum) => dayNum >= 0 && dayNum <= 6)
+            .map((dayNum) => ({
+              id: `${r.id}-${dayNum}`,
+              title: r.title,
+              day: DAYS_FULL_HOME[dayNum]!,
+              startTime: r.start_time,
+              endTime: r.end_time,
+              source: "Custom",
+            })),
         );
       } catch { /* Dexie not ready */ }
 
