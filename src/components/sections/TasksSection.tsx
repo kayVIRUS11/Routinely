@@ -1,26 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Plus, Check, Trash2 } from "lucide-react";
 import { db, makeRecord, type DbTask } from "@/db/db";
+import { useLiveQuery } from "@/hooks/useLiveQuery";
 import { cn } from "@/lib/utils";
+import { awardXP } from "@/lib/stats";
 
 interface TasksSectionProps {
   modeId: string;
 }
 
 export default function TasksSection({ modeId }: TasksSectionProps) {
-  const [tasks, setTasks] = useState<DbTask[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
-  const load = useCallback(async () => {
-    const rows = await db.tasks
-      .filter((t) => t.mode_id === modeId && !t.is_deleted)
-      .sortBy("created_at");
-    setTasks(rows);
-  }, [modeId]);
-
-  useEffect(() => { void load(); }, [load]);
+  const tasks =
+    useLiveQuery(
+      () =>
+        db.tasks
+          .filter((t) => t.mode_id === modeId && !t.is_deleted)
+          .sortBy("created_at"),
+      [modeId],
+    ) ?? [];
 
   const addTask = async () => {
     if (!newTitle.trim()) return;
@@ -35,17 +36,29 @@ export default function TasksSection({ modeId }: TasksSectionProps) {
     });
     await db.tasks.add(task);
     setNewTitle("");
-    void load();
   };
 
   const toggleTask = async (id: string, completed: boolean) => {
-    await db.tasks.update(id, { completed: !completed, updated_at: new Date().toISOString() });
-    void load();
+    await db.tasks.update(id, {
+      completed: !completed,
+      updated_at: new Date().toISOString(),
+    });
+    if (!completed) {
+      // Completing a task — award XP
+      const userId =
+        typeof window !== "undefined"
+          ? (localStorage.getItem("routinely_user_id") ??
+            localStorage.getItem("routinely_guest_user_id"))
+          : null;
+      if (userId) await awardXP(userId, "drive", 10);
+    }
   };
 
   const deleteTask = async (id: string) => {
-    await db.tasks.update(id, { is_deleted: true, updated_at: new Date().toISOString() });
-    void load();
+    await db.tasks.update(id, {
+      is_deleted: true,
+      updated_at: new Date().toISOString(),
+    });
   };
 
   const pending = tasks.filter((t) => !t.completed);

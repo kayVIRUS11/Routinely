@@ -23,6 +23,7 @@ export interface DbUser extends BaseRecord {
   is_guest: boolean;
   xp: number;
   level: number;
+  currency?: string; // e.g. 'NGN', 'USD', 'GBP' — defaults to 'USD'
 }
 
 // ─── Core tables ─────────────────────────────────────────────────────────────
@@ -201,6 +202,8 @@ export interface DbPersonalGoal extends BaseRecord {
   description: string | null;
   target_date: string | null;
   completed: boolean;
+  progress: number; // 0–100 percentage
+  completed_at: string | null;
 }
 
 export interface DbJournalEntry extends BaseRecord {
