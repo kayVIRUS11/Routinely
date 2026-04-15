@@ -438,6 +438,8 @@ export default function SettingsPage() {
     // Sync non-builtin modes back to custom_modes
     const customModes = modes.filter((m) => !m.builtin).map(modeToCustomMode);
     localStorage.setItem("custom_modes", JSON.stringify(customModes));
+    // Notify sidebar in the same tab
+    window.dispatchEvent(new CustomEvent("settings_modes_changed"));
   }, [modes]);
 
   // Persist appearance + apply theme

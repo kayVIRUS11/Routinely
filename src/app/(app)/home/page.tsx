@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import { NaturalLanguageInput } from "@/components/ui/AIAssistant";
 import { db, todayISO } from "@/db/db";
+import { formatCurrency } from "@/lib/currency";
 
 interface RoutineSlot {
   id: string;
@@ -165,6 +166,10 @@ function StudyMetricsCard({ metrics }: { metrics: StudyLiveMetrics }) {
 }
 
 function FinancialMetricsCard({ metrics }: { metrics: FinancialLiveMetrics }) {
+  const currency =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("settings_currency") ?? "USD")
+      : "USD";
   const hasData =
     metrics.monthlySpend !== null ||
     metrics.budgetRemaining !== null ||
@@ -176,13 +181,13 @@ function FinancialMetricsCard({ metrics }: { metrics: FinancialLiveMetrics }) {
       {metrics.monthlySpend !== null && (
         <div className="bg-background/50 rounded-lg p-2">
           <p className="text-xs text-text-secondary">Spent</p>
-          <p className="text-lg font-bold text-text-primary">${metrics.monthlySpend.toFixed(0)}</p>
+          <p className="text-lg font-bold text-text-primary">{formatCurrency(metrics.monthlySpend, currency)}</p>
         </div>
       )}
       {metrics.budgetRemaining !== null && (
         <div className="bg-background/50 rounded-lg p-2">
           <p className="text-xs text-text-secondary">Remaining</p>
-          <p className="text-lg font-bold text-success">${metrics.budgetRemaining.toFixed(0)}</p>
+          <p className="text-lg font-bold text-success">{formatCurrency(metrics.budgetRemaining, currency)}</p>
         </div>
       )}
       {metrics.savingsPercent !== null && (
@@ -387,11 +392,38 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    // Batch synchronous reads into a single function so all state updates
-    // happen together (React batches state updates in event handlers & effects).
-    const syncData = () => {
+    // Load routine slots: merge localStorage (built-in modes) + Dexie (custom modes + RoutineSection)
+    const syncData = async () => {
       const name = localStorage.getItem("onboarding_characterName") ?? "";
-      const allSlots = loadAllRoutineSlots();
+      const lsSlots = loadAllRoutineSlots();
+
+      // Also load routines from Dexie (created via RoutineSection in custom modes)
+      let dexieSlots: (RoutineSlot & { source: string })[] = [];
+      const DAYS_FULL_HOME = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      try {
+        const routines = await db.routines.filter((r) => r.is_active && !r.is_deleted).toArray();
+        dexieSlots = routines.flatMap((r) =>
+          r.day_of_week.map((dayNum) => ({
+            id: `${r.id}-${dayNum}`,
+            title: r.title,
+            day: DAYS_FULL_HOME[dayNum] ?? "Monday",
+            startTime: r.start_time,
+            endTime: r.end_time,
+            source: "Custom",
+          })),
+        );
+      } catch { /* Dexie not ready */ }
+
+      // Merge, deduplicate by id
+      const seen = new Set<string>();
+      const allSlots: (RoutineSlot & { source: string })[] = [];
+      for (const s of [...lsSlots, ...dexieSlots]) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          allSlots.push(s);
+        }
+      }
+
       const today = todayDayName();
       const todayFiltered = allSlots
         .filter((s) => s.day === today)
@@ -402,7 +434,7 @@ export default function HomePage() {
       setConflicts(detected);
     };
 
-    syncData();
+    void syncData();
     void loadMetrics();
   }, [loadMetrics]);
 
